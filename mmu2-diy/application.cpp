@@ -37,6 +37,11 @@
 #include <stdarg.h>
 #include "application.h"
 #include "config.h"
+#include "axis.h"
+
+#ifdef PRUSA_BOARD
+#include "shiftregister.h"
+#endif
 
 static int isFilamentLoaded();
 static void initIdlerPosition();
@@ -58,38 +63,22 @@ static void feedFilament(unsigned int steps);
 
 
 #define SERIAL1ENABLED    1
-#define ENABLE LOW                // 8825 stepper motor enable is active low
-#define DISABLE HIGH              // 8825 stepper motor disable is active high
 
-#define MMU2_VERSION "4.2  10/12/18"
 
 #define STEPSPERMM  144ul           // these are the number of steps required to travel 1 mm using the extruder motor
 
-#define FW_VERSION 90             // config.h  (MM-control-01 firmware)
-#define FW_BUILDNR 85             // config.h  (MM-control-01 firmware)
 
 #define ORIGINALCODE 0            // code that is no longer needed for operational use
 int command = 0;
 
 // changed from 125 to 115 (10.13.18)
-#define MAXROLLERTRAVEL 125         // number of steps that the roller bearing stepper motor can travel
+#define MAX_IDLER_STEPS 125         // number of steps that the roller bearing stepper motor can travel, in full steps
+#define MAXSELECTOR_STEPS   1890   // maximum number of selector stepper motor (used to move all the way to the right or left, in full steps
 
-#define FULL_STEP		1u
-#define HALF_STEP		2u
-#define QUARTER_STEP	4u
-#define EIGTH_STEP		8u
-#define SIXTEENTH_STEP	16u
 
-#define STEPSIZE SIXTEENTH_STEP    // setup for each of the three stepper motors (jumper settings for M0,M1,M2) on the RAMPS 1.x board
-
-#define STEPSPERREVOLUTION 200     // 200 steps per revolution  - 1.8 degree motors are being used
-
-#define MAXSELECTOR_STEPS   1890   // maximum number of selector stepper motor (used to move all the way to the right or left
 
 #define MMU2TOEXTRUDERSTEPS STEPSIZE*STEPSPERREVOLUTION*19   // for the 'T' command 
 
-#define CW 0
-#define CCW 1
 
 #define INACTIVE 0                           // used for 3 states of the idler stepper motor (parked)
 #define ACTIVE 1                             // not parked 
@@ -105,11 +94,6 @@ int command = 0;
 
 
 
-#define PINHIGH 10                    // how long to hold stepper motor pin high in microseconds
-#define PINLOW  10                    // how long to hold stepper motor pin low in microseconds
-
-
-
 // the MMU2 currently runs at 21mm/sec (set by Slic3r) for 2 seconds (good stuff to know)
 //
 // the load duration was chagned from 1 second to 1.1 seconds on 10.8.18 (as an experiment)
@@ -119,11 +103,10 @@ int command = 0;
 
 // changed from 21 mm/sec to 30 mm/sec on 10.13.18
 #define LOAD_SPEED 30                   // load speed (in mm/second) during the 'C' command (determined by Slic3r setting)
-#define INSTRUCTION_DELAY 25          // delay (in microseconds) of the loop
 
 
 
-#define IDLERSTEPSIZE 23         // steps to each roller bearing  
+#define IDLERSTEPSIZE 23         // full steps to each roller bearing
 //float bearingAbsPos[5] = {1, 24, 48, 72, 96}; // absolute position of roller bearing stepper motor
 float bearingAbsPos[5] = {0, IDLERSTEPSIZE, IDLERSTEPSIZE * 2, IDLERSTEPSIZE * 3, IDLERSTEPSIZE * 4};
 
@@ -160,6 +143,10 @@ boolean newData = false;
 int idlerStatus = INACTIVE;
 int colorSelectorStatus = INACTIVE;
 
+#ifdef PRUSA_BOARD
+ShiftRegister extPins(16, 9, 13, 10);
+#endif
+
 //*************************************************************************************************
 //  Delay values for each stepper motor 
 //*************************************************************************************************
@@ -167,49 +154,9 @@ int colorSelectorStatus = INACTIVE;
 #define EXTRUDERMOTORDELAY 50     // 150 useconds    (controls filament feed speed to the printer)
 #define COLORSELECTORMOTORDELAY 60 // 60 useconds    (selector motor)
 
-
-#ifdef DIY_BOARD
-// added this pin as a debug pin (lights a green LED so I can see the 'C0' command in action
-#define greenLED 14
-
-// modified code on 10.2.18 to accomodate RAMPS 1.6 board mapping
-//
-#define idlerDirPin		A7
-#define idlerStepPin	A6
-#define idlerEnablePin	A2
-
-
-
-#define extruderDirPin		48 //  pin 48 for extruder motor direction pin
-#define extruderStepPin		46 //  pin 48 for extruder motor stepper motor pin
-#define extruderEnablePin	A8 //  pin A8 for extruder motor rst/sleep motor pin
-
-#define colorSelectorDirPin		A1 //color selector stepper motor (driven by trapezoidal screw)
-#define colorSelectorStepPin	A0
-#define colorSelectorEnablePin	38
-
-
-
-#define findaPin  A3
-// this is pin D3 on the arduino MEGA 2650
-#define filamentSwitch 3       // this switch was added on 10.1.18 to help with filament loading (X- signal on the RAMPS board)
-
-#define SerialUI Serial // USB Serial
-#define SerialPrinter Serial1 // 5V UART to Prusa MK3
-
-#endif // DIY_BOARD
-
-
-#ifdef PRUSA_BOARD
-#define SerialUI Serial // USB Serial
-#define SerialPrinter Serial1 // 5V UART to Prusa MK3
-
-
-
-#endif // DIY_BOARD
-
 //SoftwareSerial Serial1(10,11); // RX, TX (communicates with the MK3 controller board
 
+// TODO 3: user arrays:
 int f0Min = 1000, f1Min = 1000, f2Min = 1000, f3Min = 1000, f4Min = 1000;
 int f0Max, f1Max, f2Max, f3Max, f4Max = 0;
 int f0Avg, f1Avg, f2Avg, f3Avg, f4Avg;
@@ -239,10 +186,8 @@ void Application::setup() {
 	delay(4000);                    // this is key to syncing to the MK3 controller - currently 4 seconds
 
 
-
-
-	SerialPrinterbegin(115200);         // startup the mk3 serial
-	// SerialPrinterbegin(115200;              // ATMEGA hardware serial interface
+	SerialPrinter.begin(115200);         // startup the mk3 serial
+	// SerialPrinter.begin(115200;              // ATMEGA hardware serial interface
 
 	//SerialUI.println(F("started the mk3 serial interface"));
 	delay(100);
@@ -252,13 +197,13 @@ void Application::setup() {
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// THIS NEXT COMMAND IS CRITICAL ... IT TELLS THE MK3 controller that an MMU is present
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	SerialPrinterprint(F("start\n"));                 // attempt to tell the mk3 that the mmu is present
+	SerialPrinter.print(F("start\n"));                 // attempt to tell the mk3 that the mmu is present
 
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//  check the serial interface to see if it is active
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	waitCount = 0;
-	while (!SerialPrinteravailable()) {
+	while (!SerialPrinter.available()) {
 
 		//delay(100);
 		SerialUI.println(F("Waiting for message from mk3"));
@@ -279,7 +224,7 @@ continue_processing:
 	pinMode(idlerStepPin, OUTPUT);
 
 	pinMode(findaPin, INPUT);                        // pinda Filament sensor
-	pinMode(filamentSwitch, INPUT);
+	pinMode(chindaPin, INPUT);
 
 	pinMode(idlerEnablePin, OUTPUT);
 	// pinMode(bearingRstPin, OUTPUT);
@@ -304,9 +249,9 @@ continue_processing:
 
 
 	// Turn on all three stepper motors
-	digitalWrite(idlerEnablePin, ENABLE);           // enable the roller bearing motor (motor #1)
-	digitalWrite(extruderEnablePin, ENABLE);        //  enable the extruder motor  (motor #2)
-	digitalWrite(colorSelectorEnablePin, ENABLE);  // enable the color selector motor  (motor #3)
+	pinWrite(idlerEnablePin, ENABLE);           // enable the roller bearing motor (motor #1)
+	pinWrite(extruderEnablePin, ENABLE);        //  enable the extruder motor  (motor #2)
+	pinWrite(colorSelectorEnablePin, ENABLE);  // enable the color selector motor  (motor #3)
 
 
 
@@ -353,7 +298,7 @@ void Application::loop() {
 	while (1) {
 		int fstatus;
 
-		fstatus = digitalRead(filamentSwitch);
+		fstatus = digitalRead(chindaPin);
 		SerialUI.print(F("Filament Status: "));
 		SerialUI.println(fstatus);
 		delay(1000);
@@ -430,12 +375,12 @@ void checkSerialInterface() {
 	// while (earlyCommands == 0) {
 	// SerialUI.println(F("waiting for response from mk3"));
 	index = 0;
-	if ((cnt = SerialPrinteravailable()) > 0) {
+	if ((cnt = SerialPrinter.available()) > 0) {
 
 		//SerialUI.print(F("chars received: "));
 		//SerialUI.println(cnt);
 
-		inputLine = SerialPrinterreadString();      // fetch the command from the mmu2 serial input interface
+		inputLine = SerialPrinter.readString();      // fetch the command from the mmu2 serial input interface
 
 		if (inputLine[0] != 'P') {
 			SerialUI.print(F("MMU Command: "));
@@ -467,7 +412,7 @@ process_more_commands:  // parse the inbound command
 			}
 
 			// delay(200);                      //removed this 200msec delay on 10.5.18
-			SerialPrinterprint(F("ok\n"));              // send command acknowledge back to mk3 controller
+			SerialPrinter.print(F("ok\n"));              // send command acknowledge back to mk3 controller
 			time5 = millis();          // grab the current time
 			break;
 		case 'C':
@@ -478,7 +423,7 @@ process_more_commands:  // parse the inbound command
 			// filamentLoadToMK3();
 			filamentLoadWithBondTechGear();
 			// delay(200);
-			SerialPrinterprint(F("ok\n"));
+			SerialPrinter.print(F("ok\n"));
 			break;
 
 		case 'U':
@@ -502,12 +447,12 @@ process_more_commands:  // parse the inbound command
 				parkIdler();
 				SerialUI.println(F("U: Sending Filament Unload Acknowledge to MK3"));
 				delay(200);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(F("ok\n"));
 
 			} else {
 				SerialUI.println(F("U: Invalid filament Unload Requested"));
 				delay(200);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(F("ok\n"));
 			}
 			break;
 		case 'L':
@@ -539,7 +484,7 @@ process_more_commands:  // parse the inbound command
 
 				delay(200);
 
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(F("ok\n"));
 
 
 
@@ -555,16 +500,16 @@ process_more_commands:  // parse the inbound command
 #ifdef NOTDEF
 			if (command == 1) {
 				SerialUI.println(F("S: Processing S2"));
-				SerialPrinterprint(FW_BUILDNR);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(FW_BUILDNR);
+				SerialPrinter.print(F("ok\n"));
 
 				command++;
 
 			}
 			if (command == 0) {
 				SerialUI.println(F("S: Processing S1"));
-				SerialPrinterprint(FW_VERSION);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(FW_VERSION);
+				SerialPrinter.print(F("ok\n"));
 
 				command++;
 			}
@@ -573,18 +518,18 @@ process_more_commands:  // parse the inbound command
 			switch (c2) {
 			case '0':
 				SerialUI.println(F("S: Sending back OK to MK3"));
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(F("ok\n"));
 				break;
 			case '1':
 				SerialUI.println(F("S: FW Version Request"));
-				SerialPrinterprint(FW_VERSION);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(FW_VERSION);
+				SerialPrinter.print(F("ok\n"));
 				break;
 			case '2':
 				SerialUI.println(F("S: Build Number Request"));
 				SerialUI.println(F("Initial Communication with MK3 Controller: Successful"));
-				SerialPrinterprint(FW_BUILDNR);
-				SerialPrinterprint(F("ok\n"));
+				SerialPrinter.print(FW_BUILDNR);
+				SerialPrinter.print(F("ok\n"));
 				break;
 			default:
 				SerialUI.println(F("S: Unable to process S Command"));
@@ -598,24 +543,24 @@ process_more_commands:  // parse the inbound command
 			findaStatus = digitalRead(findaPin);
 			if (findaStatus == 0) {
 				// SerialUI.println(F("P: FINDA INACTIVE"));
-				SerialPrinterprint(F("0"));
+				SerialPrinter.print(F("0"));
 			}
 			else {
 				// SerialUI.println(F("P: FINDA ACTIVE"));
-				SerialPrinterprint(F("1"));
+				SerialPrinter.print(F("1"));
 			}
-			SerialPrinterprint(F("ok\n"));
+			SerialPrinter.print(F("ok\n"));
 
 			break;
 		case 'F':                                         // 'F' command is acknowledged but no processing goes on at the moment
 			// will be useful for flexible material down the road
 			SerialUI.println(F("Filament Type Selected: "));
 			SerialUI.println(c2);
-			SerialPrinterprint(F("ok\n"));                        // send back OK to the mk3
+			SerialPrinter.print(F("ok\n"));                        // send back OK to the mk3
 			break;
 		default:
 			SerialUI.print(F("ERROR: unrecognized command from the MK3 controller"));
-			SerialPrinterprint(F("ok\n"));
+			SerialPrinter.print(F("ok\n"));
 
 
 		}  // end of switch statement
@@ -724,7 +669,7 @@ void fixTheProblem(String statement) {
 	SerialUI.println(F(""));
 
 	parkIdler();                                    // park the idler stepper motor
-	digitalWrite(colorSelectorEnablePin, DISABLE);  // turn off the selector stepper motor
+	pinWrite(colorSelectorEnablePin, DISABLE);  // turn off the selector stepper motor
 
 	//quickParkIdler();                   // move the idler out of the way
 	// specialParkIdler();
@@ -735,7 +680,7 @@ void fixTheProblem(String statement) {
 	SerialUI.readString();  // clear the keyboard buffer
 
 	unParkIdler();                             // put the idler stepper motor back to its' original position
-	digitalWrite(colorSelectorEnablePin, ENABLE);  // turn ON the selector stepper motor
+	pinWrite(colorSelectorEnablePin, ENABLE);  // turn ON the selector stepper motor
 	delay(1);                                  // wait for 1 millisecond
 
 	//specialUnParkIdler();
@@ -747,13 +692,13 @@ void fixTheProblem(String statement) {
 // this is the selector motor with the lead screw (final stage of the MMU2 unit)
 
 void csTurnAmount(int steps, int direction) {
-	digitalWrite(colorSelectorEnablePin, ENABLE );    // turn on the color selector motor
+	pinWrite(colorSelectorEnablePin, ENABLE );    // turn on the color selector motor
 	// delayMicroseconds(1500);                                       // wait for 1.5 milliseconds          added on 10.4.18
 
 	if (direction == CW)
-		digitalWrite(colorSelectorDirPin, LOW);      // set the direction for the Color Extruder Stepper Motor
+		pinWrite(colorSelectorDirPin, LOW);      // set the direction for the Color Extruder Stepper Motor
 	else
-		digitalWrite(colorSelectorDirPin, HIGH);
+		pinWrite(colorSelectorDirPin, HIGH);
 	// wait 1 milliseconds
 	delayMicroseconds(1500);                      // changed from 500 to 1000 microseconds on 10.6.18, changed to 1500 on 10.7.18)
 
@@ -769,15 +714,15 @@ void csTurnAmount(int steps, int direction) {
 #endif
 
 	for (uint16_t i = 0; i <= (steps * STEPSIZE); i++) {                      // fixed this to '<=' from '<' on 10.5.18
-		digitalWrite(colorSelectorStepPin, HIGH);
+		pinWrite(colorSelectorStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(colorSelectorStepPin, LOW);
+		pinWrite(colorSelectorStepPin, LOW);
 		delayMicroseconds(PINLOW);               // delay for 10 useconds  (added back in on 10.8.2018)
 		delayMicroseconds(COLORSELECTORMOTORDELAY);         // wait for 400 useconds
 	}
 
 #ifdef TURNOFFSELECTORMOTOR                         // added on 10.14.18
-	digitalWrite(colorSelectorEnablePin, DISABLE);    // turn off the color selector motor
+	pinWrite(colorSelectorEnablePin, DISABLE);    // turn off the color selector motor
 #endif
 
 }
@@ -790,9 +735,9 @@ void csTurnAmount(int steps, int direction) {
 //  (not used operationally)
 void completeRevolution() {
 	for (uint16_t i = 0; i < STEPSPERREVOLUTION * STEPSIZE; i++) {
-		digitalWrite(idlerStepPin, HIGH);
+		pinWrite(idlerStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(idlerStepPin, LOW);
+		pinWrite(idlerStepPin, LOW);
 		delayMicroseconds(PINLOW);               // delay for 10 useconds
 
 		delayMicroseconds(IDLERMOTORDELAY);
@@ -813,21 +758,21 @@ void idlerturnamount(int steps, int dir) {
 	SerialUI.println(dir);
 #endif
 
-	digitalWrite(idlerEnablePin, ENABLE);   // turn on motor
-	digitalWrite(idlerDirPin, dir);
+	pinWrite(idlerEnablePin, ENABLE);   // turn on motor
+	pinWrite(idlerDirPin, dir);
 	delay(1);                               // wait for 1 millisecond
 
-	// digitalWrite(ledPin, HIGH);
+	// pinWrite(ledPin, HIGH);
 
-	//digitalWrite(idlerDirPin, dir);
+	//pinWrite(idlerDirPin, dir);
 	//delay(1);                               // wait for 1 millsecond
 
 	// these command actually move the IDLER stepper motor
 	//
 	for (uint16_t i = 0; i < steps * STEPSIZE; i++) {
-		digitalWrite(idlerStepPin, HIGH);
+		pinWrite(idlerStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(idlerStepPin, LOW);
+		pinWrite(idlerStepPin, LOW);
 		//delayMicroseconds(PINLOW);               // delay for 10 useconds (removed on 10.7.18
 
 		delayMicroseconds(IDLERMOTORDELAY);
@@ -844,8 +789,8 @@ void loadFilamentToFinda() {
 	int findaStatus;
 	unsigned long startTime, currentTime;
 
-	digitalWrite(extruderEnablePin, ENABLE);  // added on 10.14.18
-	digitalWrite(extruderDirPin, CCW);  // set the direction of the MMU2 extruder motor
+	pinWrite(extruderEnablePin, ENABLE);  // added on 10.14.18
+	pinWrite(extruderDirPin, CCW);  // set the direction of the MMU2 extruder motor
 	delay(1);
 
 	startTime = millis();
@@ -871,7 +816,7 @@ loop:
 	//
 	// for a filament load ... need to get the filament out of the selector head !!!
 	//
-	digitalWrite(extruderDirPin, CW);   // back the filament away from the selector
+	pinWrite(extruderDirPin, CW);   // back the filament away from the selector
 
 #ifdef NOTDEF
 	unsigned int steps;
@@ -884,7 +829,7 @@ loop:
 	SerialUI.println(F("Loading Filament Complete ..."));
 #endif
 
-	// digitalWrite(ledPin, LOW);     // turn off LED
+	// pinWrite(ledPin, LOW);     // turn off LED
 }
 
 //*********************************************************************************************
@@ -901,8 +846,8 @@ void unloadFilamentToFinda() {
 		return;
 	}
 
-	digitalWrite(extruderEnablePin, ENABLE);  // turn on the extruder motor
-	digitalWrite(extruderDirPin, CW);  // set the direction of the MMU2 extruder motor
+	pinWrite(extruderEnablePin, ENABLE);  // turn on the extruder motor
+	pinWrite(extruderDirPin, CW);  // set the direction of the MMU2 extruder motor
 	delay(1);
 
 	startTime = millis();
@@ -916,7 +861,7 @@ loop:
 	//* added filament sensor status check (10.14.18)
 	//************************************************************************************************************
 
-	fStatus = digitalRead(filamentSwitch);          // read the filament switch (on the top of the mk3 extruder)
+	fStatus = digitalRead(chindaPin);          // read the filament switch (on the top of the mk3 extruder)
 
 	if (fStatus == 0) {                             // filament Switch is still ON, check for timeout condition
 
@@ -953,7 +898,7 @@ loop:
 	//
 	// for a filament unload ... need to get the filament out of the selector head !!!
 	//
-	digitalWrite(extruderDirPin, CW);   // back the filament away from the selector
+	pinWrite(extruderDirPin, CW);   // back the filament away from the selector
 
 	//steps = 200 * STEPSIZE + 50;
 	//feedFilament(steps);
@@ -964,7 +909,7 @@ loop:
 	SerialUI.println(F("unloadFilamentToFinda(): Unloading Filament Complete ..."));
 #endif
 
-	// digitalWrite(ledPin, LOW);     // turn off LED
+	// pinWrite(ledPin, LOW);     // turn off LED
 }
 
 
@@ -973,8 +918,8 @@ void loadFilament(int direction) {
 	unsigned int steps;
 
 
-	// digitalWrite(ledPin, HIGH);          // turn on LED to indicate extruder motor is running
-	digitalWrite(extruderDirPin, direction);  // set the direction of the MMU2 extruder motor
+	// pinWrite(ledPin, HIGH);          // turn on LED to indicate extruder motor is running
+	pinWrite(extruderDirPin, direction);  // set the direction of the MMU2 extruder motor
 
 
 	switch (direction) {
@@ -1026,9 +971,9 @@ void feedFilament(unsigned int steps) {
 #endif
 
 	for (uint16_t i = 0; i <= steps; i++) {
-		digitalWrite(extruderStepPin, HIGH);
+		pinWrite(extruderStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(extruderStepPin, LOW);
+		pinWrite(extruderStepPin, LOW);
 		delayMicroseconds(PINLOW);               // delay for 10 useconds
 
 		delayMicroseconds(EXTRUDERMOTORDELAY);         // wait for 400 useconds
@@ -1054,7 +999,7 @@ void idlerSelector(char filament) {
 #endif
 
 	//* added on 10.14.18  (need to turn the extruder stepper motor back on since it is turned off by parkidler()
-	digitalWrite(extruderEnablePin, ENABLE);
+	pinWrite(extruderEnablePin, ENABLE);
 
 
 	if ((filament < '0') || (filament > '4')) {
@@ -1113,12 +1058,12 @@ void initIdlerPosition() {
 	SerialUI.println(F("initIdlerPosition(): resetting the Idler Roller Bearing position"));
 #endif
 
-	digitalWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
+	pinWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
 	delay(1);
 	oldBearingPosition = 125;                // points to position #1
-	idlerturnamount(MAXROLLERTRAVEL, CW);
-	idlerturnamount(MAXROLLERTRAVEL, CCW);                // move the bearings out of the way
-	digitalWrite(idlerEnablePin, DISABLE);   // turn off the idler roller bearing motor
+	idlerturnamount(MAX_IDLER_STEPS, CW);
+	idlerturnamount(MAX_IDLER_STEPS, CCW);                // move the bearings out of the way
+	pinWrite(idlerEnablePin, DISABLE);   // turn off the idler roller bearing motor
 
 	filamentSelection = 0;       // keep track of filament selection (0,1,2,3,4))
 	currentExtruder = '0';
@@ -1133,13 +1078,13 @@ void initColorSelector() {
 #ifdef NOTDEF
 	SerialUI.println(F("Syncing the Color Selector Assembly"));
 #endif
-	digitalWrite(colorSelectorEnablePin, ENABLE);   // turn on the stepper motor
+	pinWrite(colorSelectorEnablePin, ENABLE);   // turn on the stepper motor
 	delay(1);                                       // wait for 1 millisecond
 
 	csTurnAmount(MAXSELECTOR_STEPS, CW);             // move to the right
 	csTurnAmount(MAXSELECTOR_STEPS+20, CCW);        // move all the way to the left
 
-	digitalWrite(colorSelectorEnablePin, DISABLE);   // turn off the stepper motor
+	pinWrite(colorSelectorEnablePin, DISABLE);   // turn off the stepper motor
 
 }
 
@@ -1149,7 +1094,7 @@ void initColorSelector() {
 void syncColorSelector() {
 	int moveSteps;
 
-	digitalWrite(colorSelectorEnablePin, ENABLE);   // turn on the selector stepper motor
+	pinWrite(colorSelectorEnablePin, ENABLE);   // turn on the selector stepper motor
 	delay(1);                                       // wait for 1 millecond
 
 	SerialUI.print(F("syncColorSelelector()   current Filament selection: "));
@@ -1163,7 +1108,7 @@ void syncColorSelector() {
 	csTurnAmount(MAXSELECTOR_STEPS+20, CCW);        // move all the way to the left
 
 #ifdef TURNOFFSELECTORMOTOR                        // added on 10.14.18
-	digitalWrite(colorSelectorEnablePin, DISABLE);   // turn off the selector stepper motor
+	pinWrite(colorSelectorEnablePin, DISABLE);   // turn off the selector stepper motor
 #endif
 }
 
@@ -1172,7 +1117,7 @@ void syncColorSelector() {
 //
 void activateRollers() {
 
-	digitalWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing stepper motor
+	pinWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing stepper motor
 
 	// turnAmount(120, CW);   // move the rollers to filament position #1
 	// oldBearingPosition = 45;  // filament position #1
@@ -1187,7 +1132,7 @@ void activateRollers() {
 void parkIdler() {
 	int newSetting;
 
-	digitalWrite(idlerEnablePin, ENABLE);
+	pinWrite(idlerEnablePin, ENABLE);
 	delay(1);
 
 	// commented out on 10.13.18
@@ -1202,7 +1147,7 @@ void parkIdler() {
 	SerialUI.println(filamentSelection);
 #endif
 
-	newSetting = MAXROLLERTRAVEL - oldBearingPosition;
+	newSetting = MAX_IDLER_STEPS - oldBearingPosition;
 
 #ifdef DEBUG
 	SerialUI.print(F("parkIdler() DeactiveRoller newSetting: "));
@@ -1210,12 +1155,12 @@ void parkIdler() {
 #endif
 
 	idlerturnamount(newSetting, CCW);     // move the bearing roller out of the way
-	oldBearingPosition = MAXROLLERTRAVEL;   // record the current roller status  (CSK)
+	oldBearingPosition = MAX_IDLER_STEPS;   // record the current roller status  (CSK)
 
 	idlerStatus = INACTIVE;
-	digitalWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
+	pinWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
 	// added on 10.14.18
-	digitalWrite(extruderEnablePin, DISABLE); // turn off the extruder stepper motor as well
+	pinWrite(extruderEnablePin, DISABLE); // turn off the extruder stepper motor as well
 
 }
 
@@ -1225,15 +1170,15 @@ void parkIdler() {
 void unParkIdler() {
 	int rollerSetting;
 
-	digitalWrite(idlerEnablePin, ENABLE);   // turn on (enable) the roller bearing motor
+	pinWrite(idlerEnablePin, ENABLE);   // turn on (enable) the roller bearing motor
 	// added on 10.14.18
-	digitalWrite(extruderEnablePin, ENABLE);  // turn on (enable) the extruder stepper motor as well
+	pinWrite(extruderEnablePin, ENABLE);  // turn on (enable) the extruder stepper motor as well
 
 	delay(1);                              // wait for 10 useconds
 
 	//SerialUI.println(F("Activating the Idler Rollers"));
 
-	rollerSetting = MAXROLLERTRAVEL - bearingAbsPos[filamentSelection];
+	rollerSetting = MAX_IDLER_STEPS - bearingAbsPos[filamentSelection];
 	//************** added on 10.13.18
 
 	oldBearingPosition = bearingAbsPos[filamentSelection];                   // update the idler bearing position
@@ -1252,7 +1197,7 @@ void unParkIdler() {
 //  this is trying to save significant time on re-engaging the idler when the 'C' command is activated
 
 void quickParkIdler() {
-	digitalWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
+	pinWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
 	delay(1);
 
 	//**************************************************************************************************
@@ -1306,7 +1251,7 @@ void quickParkIdler() {
 	//* DO NOT TURN OFF THE IDLER ... needs to be held in position
 	//*********************************************************************************************************
 
-	//digitalWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
+	//pinWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
 
 }
 
@@ -1320,7 +1265,7 @@ void quickUnParkIdler() {
 	//* don't need to turn on the idler ... it is already on (from the 'T' command)
 	//*********************************************************************************************************
 
-	//digitalWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
+	//pinWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
 	//delay(1);                              // wait for 1 millisecond
 	//if (idlerStatus != QUICKPARKED) {
 	//    SerialUI.println(F("quickUnParkIdler(): idler already parked"));
@@ -1370,7 +1315,7 @@ void quickUnParkIdler() {
 void specialParkIdler() {
 	int idlerSteps;
 
-	digitalWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
+	pinWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
 	delay(1);
 
 	// oldBearingPosition = bearingAbsPos[filamentSelection];          // fetch the bearing position based on the filament state
@@ -1410,10 +1355,10 @@ void specialParkIdler() {
 
 	//* SPECIAL DEBUG (10.13.18 - evening)
 	//* turn off the idler stepper motor
-	// digitalWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
+	// pinWrite(idlerEnablePin, DISABLE);    // turn off the roller bearing stepper motor  (nice to do, cuts down on CURRENT utilization)
 
 #ifdef NOTDEF
-	digitalWrite(extruderEnablePin, DISABLE);
+	pinWrite(extruderEnablePin, DISABLE);
 	extruderMotorStatus = INACTIVE;
 #endif
 
@@ -1462,14 +1407,14 @@ void specialUnParkIdler() {
 
 void deActivateColorSelector() {
 #ifdef TURNOFFSELECTORMOTOR
-	digitalWrite(colorSelectorEnablePin, DISABLE);    // turn off the color selector stepper motor  (nice to do, cuts down on CURRENT utilization)
+	pinWrite(colorSelectorEnablePin, DISABLE);    // turn off the color selector stepper motor  (nice to do, cuts down on CURRENT utilization)
 	delay(1);
 	colorSelectorStatus = INACTIVE;
 #endif
 }
 
 void activateColorSelector() {
-	digitalWrite(colorSelectorEnablePin, ENABLE);
+	pinWrite(colorSelectorEnablePin, ENABLE);
 	delay(1);
 	colorSelectorStatus = ACTIVE;
 }
@@ -1580,8 +1525,8 @@ void filamentLoadToMK3() {
 
 	deActivateColorSelector();
 
-	digitalWrite(extruderEnablePin, ENABLE); // turn on the extruder stepper motor (10.14.18)
-	digitalWrite(extruderDirPin, CCW);      // set extruder stepper motor to push filament towards the mk3
+	pinWrite(extruderEnablePin, ENABLE); // turn on the extruder stepper motor (10.14.18)
+	pinWrite(extruderDirPin, CCW);      // set extruder stepper motor to push filament towards the mk3
 	delay(1);                               // wait 1 millisecond
 
 	startTime = millis();
@@ -1606,7 +1551,7 @@ loop:
 	//*       this error condition can result in 'air printing'
 	//***************************************************************************************************************************
 loop1:
-	fStatus = digitalRead(filamentSwitch);
+	fStatus = digitalRead(chindaPin);
 	if (fStatus == 0) {                    // switch is active (this is not a good condition)
 		fixTheProblem("FILAMENT LOAD ERROR: Filament Switch in the MK3 is active (see the RED LED), it is either stuck open or there is debris");
 		goto loop1;
@@ -1641,7 +1586,7 @@ loop1:
 
 		feedFilament(STEPSPERMM);        // step forward 1 mm
 		filamentDistance++;
-		fStatus = digitalRead(filamentSwitch);             // read the filament switch on the mk3 extruder
+		fStatus = digitalRead(chindaPin);             // read the filament switch on the mk3 extruder
 		if (fStatus == 0) {
 			// SerialUI.println(F("filament switch triggered"));
 			flag = 1;
@@ -1729,7 +1674,7 @@ loop1:
 	// parkIdler();              // park the IDLER (bearing) motor
 
 	//delay(200);             // removed on 10.5.18
-	//SerialPrinterprint(F("ok\n"));    // send back acknowledge to the mk3 controller (removed on 10.5.18)
+	//SerialPrinter.print(F("ok\n"));    // send back acknowledge to the mk3 controller (removed on 10.5.18)
 
 }
 
@@ -2009,7 +1954,7 @@ void filamentLoadWithBondTechGear() {
 
 	stepCount = 0;
 	time0 = millis();
-	digitalWrite(greenLED, HIGH);                   // turn on the green LED (for debug purposes)
+	pinWrite(greenLED, HIGH);                   // turn on the green LED (for debug purposes)
 	//*******************************************************************************************
 	// feed the filament from the MMU2 into the bondtech gear for 2 seconds at 10 mm/sec
 	// STEPPERMM : 144, 1: duration in seconds,  21: feed rate (in mm/sec)
@@ -2039,9 +1984,9 @@ void filamentLoadWithBondTechGear() {
 #endif
 
 	for (i = 0; i < tSteps; i++) {
-		digitalWrite(extruderStepPin, HIGH);  // step the extruder stepper in the MMU2 unit
+		pinWrite(extruderStepPin, HIGH);  // step the extruder stepper in the MMU2 unit
 		delayMicroseconds(PINHIGH);
-		digitalWrite(extruderStepPin, LOW);
+		pinWrite(extruderStepPin, LOW);
 		//*****************************************************************************************************
 		// replace '350' with delayFactor once testing of variable is complete
 		//*****************************************************************************************************
@@ -2049,7 +1994,7 @@ void filamentLoadWithBondTechGear() {
 		delayMicroseconds(delayFactor);             // this was calculated in order to arrive at a 10mm/sec feed rate
 		++stepCount;
 	}
-	digitalWrite(greenLED, LOW);                      // turn off the green LED (for debug purposes)
+	pinWrite(greenLED, LOW);                      // turn off the green LED (for debug purposes)
 
 	time1 = millis();
 
@@ -2064,17 +2009,17 @@ void filamentLoadWithBondTechGear() {
 	//***********************************************************************************************************
 #ifdef NOTDEF
 	for (i = 0; i <= 320; i++) {
-		digitalWrite(extruderStepPin, HIGH);
+		pinWrite(extruderStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(extruderStepPin, LOW);
+		pinWrite(extruderStepPin, LOW);
 		//delayMicroseconds(2600);             // originally 2600
 		delayMicroseconds(800);              // speed up by a factor of 3
 
 	}
 	for (i = 0; i <= 450; i++) {
-		digitalWrite(extruderStepPin, HIGH);
+		pinWrite(extruderStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
-		digitalWrite(extruderStepPin, LOW);
+		pinWrite(extruderStepPin, LOW);
 		// delayMicroseconds(2200);            // originally 2200
 		delayMicroseconds(800);             // speed up by a factor of 3
 	}
@@ -2144,3 +2089,16 @@ Application::Application()
 {
 	// nothing to do in the constructor
 }
+
+
+#ifdef PRUSA_BOARD
+void pinWrite(PinNr pinNr, bool value)
+{
+	if(pinNr < 0x100){
+		digitalWrite(pinNr, value);
+	}else{
+		extPins.writeBit(pinNr&0xff, value);
+		extPins.transferData();
+	}
+}
+#endif

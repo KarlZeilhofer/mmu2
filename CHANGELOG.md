@@ -15,3 +15,8 @@ Changelog for DIY MMU 2.0
 * add config.h
 * fixed all compiler warnings. Some were critical with integer overflow!
   (works with all config flags in config.h enabled or disabled)
+* add Axis class
+* add defs.h
+* use macros SerialUI and SerialPrinter for better clarity
+* put shift register and native pins into a single number space using pinWrite()
+*
