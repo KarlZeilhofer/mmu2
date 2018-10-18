@@ -74,11 +74,11 @@ int command = 0;
 // changed from 125 to 115 (10.13.18)
 #define MAXROLLERTRAVEL 125         // number of steps that the roller bearing stepper motor can travel
 
-#define FULL_STEP  1u
-#define HALF_STEP  2u
-#define QUARTER_STEP 4u
-#define EIGTH_STEP 8u
-#define SIXTEENTH_STEP 16u
+#define FULL_STEP		1u
+#define HALF_STEP		2u
+#define QUARTER_STEP	4u
+#define EIGTH_STEP		8u
+#define SIXTEENTH_STEP	16u
 
 #define STEPSIZE SIXTEENTH_STEP    // setup for each of the three stepper motors (jumper settings for M0,M1,M2) on the RAMPS 1.x board
 
@@ -1071,35 +1071,12 @@ void idlerSelector(char filament) {
 	SerialUI.println(F("Moving filament selector"));
 #endif
 
-	switch (filament) {
-	case '0':
-		newBearingPosition = bearingAbsPos[0];                         // idler set to 1st position
-		filamentSelection = 0;
-		currentExtruder = '0';
-		break;
-	case '1':
-		newBearingPosition = bearingAbsPos[1];
-		filamentSelection = 1;
-		currentExtruder = '1';
-		break;
-	case '2':
-		newBearingPosition = bearingAbsPos[2];
-		filamentSelection = 2;
-		currentExtruder = '2';
-		break;
-	case '3':
-		newBearingPosition = bearingAbsPos[3];
-		filamentSelection = 3;
-		currentExtruder = '3';
-		break;
-	case '4':
-		newBearingPosition = bearingAbsPos[4];
-		filamentSelection = 4;
-		currentExtruder = '4';
-		break;
-	default:
+	if(filament>='0' && filament <= '4'){
+		newBearingPosition = bearingAbsPos[filament-'0'];                         // idler set to 1st position
+		filamentSelection = filament-'0';
+		currentExtruder = filament;
+	}else{
 		SerialUI.println(F("idlerSelector(): ERROR, Invalid Idler Bearing Position"));
-		break;
 	}
 
 	// turnAmount(newFilamentPosition,CCW);                        // new method
