@@ -22,7 +22,21 @@ you probably won't read this because it is too far down the page:
 recommend setting this to 0.6V (details on how to adjust this are on the polulu.com website - look for 8825 stepper 
 motor controller).  If you don't have a multimeter for measuring voltage then STOP - you are in deep waters.**
 
-# TODOs
+## Build Instructions
+This project is made to be built either with the Arduino IDE or with Platformio. And both boards - Arduino Mega (DIY build) and Leonardo (official Prusa controller board) are supported. The later one is still work in progress. 
+
+### Arduino
+Tested with Arduino IDE 1.8.5. Open the file ./mmu2-diy/mmu2-diy.ino in your Arduino IDE, select your board and hit compile and upload.
+
+### Platformio
+You may adjust the the board in the platformio.ini file before running these lines:
+```
+pio init
+pio run
+pio run --target upload
+```
+
+## TODOs
 * Document Pinouts for each of the stepper motors
 * Document Pinouts for 2 sensor cables
 * Document Pinouts for Cable between MMU2 controller and MK3 controller (TX, RX, Reset, Vcc)

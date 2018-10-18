@@ -36,8 +36,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "application.h"
-
-
+#include "config.h"
 
 static int isFilamentLoaded();
 static void initIdlerPosition();
@@ -64,7 +63,7 @@ static void feedFilament(unsigned int steps);
 
 #define MMU2_VERSION "4.2  10/12/18"
 
-#define STEPSPERMM  144           // these are the number of steps required to travel 1 mm using the extruder motor
+#define STEPSPERMM  144ul           // these are the number of steps required to travel 1 mm using the extruder motor
 
 #define FW_VERSION 90             // config.h  (MM-control-01 firmware)
 #define FW_BUILDNR 85             // config.h  (MM-control-01 firmware)
@@ -75,11 +74,11 @@ int command = 0;
 // changed from 125 to 115 (10.13.18)
 #define MAXROLLERTRAVEL 125         // number of steps that the roller bearing stepper motor can travel
 
-#define FULL_STEP  1
-#define HALF_STEP  2
-#define QUARTER_STEP 4
-#define EIGTH_STEP 8
-#define SIXTEENTH_STEP 16
+#define FULL_STEP  1u
+#define HALF_STEP  2u
+#define QUARTER_STEP 4u
+#define EIGTH_STEP 8u
+#define SIXTEENTH_STEP 16u
 
 #define STEPSIZE SIXTEENTH_STEP    // setup for each of the three stepper motors (jumper settings for M0,M1,M2) on the RAMPS 1.x board
 
@@ -326,12 +325,7 @@ continue_processing:
 // infinite loop - core of the program
 
 void Application::loop() {
-	int i;
-	char rcvChar;
-	int pindaStatus;
-	char c1, c2, c3;
 	String kbString;
-	int fstatus;
 
 
 	// Serial.println(F("looping"));
@@ -339,6 +333,8 @@ void Application::loop() {
 	checkSerialInterface();           // check the serial interface for input commands from the mk3
 #ifdef NOTDEF
 	while (1) {
+		int fstatus;
+
 		fstatus = digitalRead(filamentSwitch);
 		Serial.print(F("Filament Status: "));
 		Serial.println(fstatus);
@@ -405,15 +401,10 @@ void Application::loop() {
 // need to check the PINDA status
 
 void checkSerialInterface() {
-	unsigned char c1, c2, c3;
-	int i;
 	int cnt;
-	char c;
 	String inputLine;
-	int counter = 0;
 	int findaStatus;
 	int index;
-	long steps;
 
 
 	// Serial.println(F("Waiting for communication with mk3"));
@@ -433,9 +424,11 @@ void checkSerialInterface() {
 			Serial.println(inputLine);
 		}
 process_more_commands:  // parse the inbound command
+		unsigned char c1, c2;
+
 		c1 = inputLine[index++];                      // fetch single characer from the input line
 		c2 = inputLine[index++];                      // fetch 2nd character from the input line
-		c3 = inputLine[index++];                      // carriage return
+		inputLine[index++];                      // carriage return
 
 
 		// process commands coming from the mk3 controller
@@ -736,9 +729,6 @@ void fixTheProblem(String statement) {
 // this is the selector motor with the lead screw (final stage of the MMU2 unit)
 
 void csTurnAmount(int steps, int direction) {
-	int i;
-	int scount;
-
 	digitalWrite(colorSelectorEnablePin, ENABLE );    // turn on the color selector motor
 	// delayMicroseconds(1500);                                       // wait for 1.5 milliseconds          added on 10.4.18
 
@@ -750,6 +740,8 @@ void csTurnAmount(int steps, int direction) {
 	delayMicroseconds(1500);                      // changed from 500 to 1000 microseconds on 10.6.18, changed to 1500 on 10.7.18)
 
 #ifdef DEBUG
+	int scount;
+
 	Serial.print(F("raw steps: "));
 	Serial.println(steps);
 
@@ -758,13 +750,12 @@ void csTurnAmount(int steps, int direction) {
 	Serial.println(scount);
 #endif
 
-	for (i = 0; i <= (steps * STEPSIZE); i++) {                      // fixed this to '<=' from '<' on 10.5.18
+	for (uint16_t i = 0; i <= (steps * STEPSIZE); i++) {                      // fixed this to '<=' from '<' on 10.5.18
 		digitalWrite(colorSelectorStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
 		digitalWrite(colorSelectorStepPin, LOW);
 		delayMicroseconds(PINLOW);               // delay for 10 useconds  (added back in on 10.8.2018)
 		delayMicroseconds(COLORSELECTORMOTORDELAY);         // wait for 400 useconds
-
 	}
 
 #ifdef TURNOFFSELECTORMOTOR                         // added on 10.14.18
@@ -780,9 +771,7 @@ void csTurnAmount(int steps, int direction) {
 // test code snippet for moving a stepper motor
 //  (not used operationally)
 void completeRevolution() {
-	int i, delayValue;
-
-	for (i = 0; i < STEPSPERREVOLUTION * STEPSIZE; i++) {
+	for (uint16_t i = 0; i < STEPSPERREVOLUTION * STEPSIZE; i++) {
 		digitalWrite(idlerStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
 		digitalWrite(idlerStepPin, LOW);
@@ -791,7 +780,6 @@ void completeRevolution() {
 		delayMicroseconds(IDLERMOTORDELAY);
 		//delayValue = 64/stepSize;
 		//delay(delayValue);           // wait for 30 milliseconds
-
 	}
 }
 
@@ -799,11 +787,6 @@ void completeRevolution() {
 // turn the idler stepper motor
 //
 void idlerturnamount(int steps, int dir) {
-	int i;
-	int delayValue;
-
-
-
 #ifdef NOTDEF
 	Serial.println(F("moving the idler ..."));
 	Serial.print(F("steps: "));
@@ -823,14 +806,13 @@ void idlerturnamount(int steps, int dir) {
 
 	// these command actually move the IDLER stepper motor
 	//
-	for (i = 0; i < steps * STEPSIZE; i++) {
+	for (uint16_t i = 0; i < steps * STEPSIZE; i++) {
 		digitalWrite(idlerStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
 		digitalWrite(idlerStepPin, LOW);
 		//delayMicroseconds(PINLOW);               // delay for 10 useconds (removed on 10.7.18
 
 		delayMicroseconds(IDLERMOTORDELAY);
-
 	}
 #ifdef NOTDEF
 	Serial.println(F("finished moving the idler ..."));
@@ -841,9 +823,7 @@ void idlerturnamount(int steps, int dir) {
 
 // turns on the extruder motor
 void loadFilamentToFinda() {
-	int i;
 	int findaStatus;
-	unsigned int steps;
 	unsigned long startTime, currentTime;
 
 	digitalWrite(extruderEnablePin, ENABLE);  // added on 10.14.18
@@ -876,6 +856,7 @@ loop:
 	digitalWrite(extruderDirPin, CW);   // back the filament away from the selector
 
 #ifdef NOTDEF
+	unsigned int steps;
 	steps = 200 * STEPSIZE + 50;
 	feedFilament(steps);
 #endif
@@ -893,9 +874,6 @@ loop:
 // turns on the extruder motor
 //*********************************************************************************************
 void unloadFilamentToFinda() {
-	int i;
-	int findaStatus;
-	unsigned int steps;
 	unsigned long startTime, currentTime, startTime1;
 	int fStatus;
 
@@ -973,7 +951,6 @@ loop:
 
 
 void loadFilament(int direction) {
-	int i;
 	int findaStatus;
 	unsigned int steps;
 
@@ -993,7 +970,7 @@ loop:
 		Serial.println(F("Pinda Sensor Triggered"));
 		// now feed the filament ALL the way to the printer extruder assembly
 
-		steps = 17 * 200 * STEPSIZE;
+		steps = 17ul * STEPSPERREVOLUTION * STEPSIZE;
 
 		Serial.print(F("steps: "));
 		Serial.println(steps);
@@ -1015,11 +992,7 @@ loop1:
 		break;
 	default:
 		Serial.println(F("loadFilament:  I shouldn't be here !!!!"));
-
-
 	}
-
-
 }
 
 //
@@ -1027,9 +1000,6 @@ loop1:
 //  144 steps = 1mm of filament (using the current mk8 gears in the MMU2)
 //
 void feedFilament(unsigned int steps) {
-
-	int i;
-
 #ifdef NOTDEF
 	if (steps > 1) {
 		Serial.print(F("Steps: "));
@@ -1037,7 +1007,7 @@ void feedFilament(unsigned int steps) {
 	}
 #endif
 
-	for (i = 0; i <= steps; i++) {
+	for (uint16_t i = 0; i <= steps; i++) {
 		digitalWrite(extruderStepPin, HIGH);
 		delayMicroseconds(PINHIGH);               // delay for 10 useconds
 		digitalWrite(extruderStepPin, LOW);
@@ -1057,7 +1027,6 @@ void recoverfilamentSelector() {
 // this routine drives the 5 position bearings (aka idler) on the top of the MMU2 carriage
 //
 void idlerSelector(char filament) {
-	int steps;
 	int newBearingPosition;
 	int newSetting;
 
@@ -1288,8 +1257,6 @@ void unParkIdler() {
 //  this is trying to save significant time on re-engaging the idler when the 'C' command is activated
 
 void quickParkIdler() {
-	int newSetting;
-
 	digitalWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
 	delay(1);
 
@@ -1315,12 +1282,12 @@ void quickParkIdler() {
 	//* COMMENTED OUT THIS SECTION OF CODE on 10.13.18  (don't think it is necessary)
 #ifdef CRAZYIVAN
 	if (currentExtruder == 4) {
-		newSetting = oldBearingPosition - IDLERSTEPSIZE;
+		//newSetting = oldBearingPosition - IDLERSTEPSIZE;
 		idlerturnamount(IDLERSTEPSIZE, CW);
 	} else {
 #endif
 
-		newSetting = oldBearingPosition + IDLERSTEPSIZE;       // try to move 12 units (just to disengage the roller)
+		//newSetting = oldBearingPosition + IDLERSTEPSIZE;       // try to move 12 units (just to disengage the roller)
 		idlerturnamount(IDLERSTEPSIZE, CCW);
 
 #ifdef CRAZYIVAN
@@ -1406,7 +1373,7 @@ void quickUnParkIdler() {
 //* called by 'C' command to park the idler
 //***************************************************************************************************************
 void specialParkIdler() {
-	int newSetting, idlerSteps;
+	int idlerSteps;
 
 	digitalWrite(idlerEnablePin, ENABLE);                          // turn on the idler stepper motor
 	delay(1);
@@ -1431,7 +1398,7 @@ void specialParkIdler() {
 	Serial.println(idlerSteps);
 #endif
 
-	newSetting = oldBearingPosition + idlerSteps;     // try to move 6 units (just to disengage the roller)
+	//newSetting = oldBearingPosition + idlerSteps;     // try to move 6 units (just to disengage the roller)
 	idlerturnamount(idlerSteps, CCW);
 
 	//************************************************************************************************
@@ -1461,7 +1428,7 @@ void specialParkIdler() {
 //  this routine is called by the 'C' command to re-engage the idler bearing
 //*********************************************************************************************
 void specialUnParkIdler() {
-	int newSetting, idlerSteps;
+	int idlerSteps;
 
 	// re-enage the idler bearing that was only moved 1 position (for quicker re-engagement)
 	//
@@ -1482,7 +1449,7 @@ void specialUnParkIdler() {
 	Serial.println(oldBearingPosition);
 #endif
 
-	newSetting = oldBearingPosition - idlerSteps; // go back IDLERSTEPSIZE units (hopefully re-enages the bearing
+	//newSetting = oldBearingPosition - idlerSteps; // go back IDLERSTEPSIZE units (hopefully re-enages the bearing
 	idlerturnamount(idlerSteps, CW); // restore old position
 
 	// MIGHT BE A BAD IDEA
@@ -1499,14 +1466,11 @@ void specialUnParkIdler() {
 }
 
 void deActivateColorSelector() {
-	int newSetting;
-
 #ifdef TURNOFFSELECTORMOTOR
 	digitalWrite(colorSelectorEnablePin, DISABLE);    // turn off the color selector stepper motor  (nice to do, cuts down on CURRENT utilization)
 	delay(1);
 	colorSelectorStatus = INACTIVE;
 #endif
-
 }
 
 void activateColorSelector() {
@@ -1599,8 +1563,6 @@ void processKeyboardInput() {
 //* this routine is executed as part of the 'T' Command (Load Filament)
 //***********************************************************************************
 void filamentLoadToMK3() {
-	float fsteps;
-	unsigned int steps;
 	int findaStatus;
 	int flag;
 	int filamentDistance;
@@ -1976,12 +1938,10 @@ void toolChange( char selection) {
 // part of the 'C' command,  does the last little bit to load into the past the extruder gear
 void filamentLoadWithBondTechGear() {
 	int findaStatus;
-	long steps;
 	int i;
 	int delayFactor;                            // delay factor (in microseconds) for the filament load loop
 	int stepCount;
 	int tSteps;
-	long timeStart, timeEnd, timeUnparking;
 
 	timeCStart = millis();
 
@@ -2017,7 +1977,10 @@ void filamentLoadWithBondTechGear() {
 	//*  (IF 2 'C' commands are issued by the MK3 in a row the code below might be an issue)
 	//*
 	//*************************************************************************************************
+#ifdef NOTDEF
+	long timeStart, timeEnd;
 	timeStart = millis();
+#endif
 	if (idlerStatus == QUICKPARKED) {                        // make sure idler is  in the pending state (set by quickparkidler() routine)
 		// Serial.println(F("'C' Command: quickUnParking the Idler"));
 		// quickUnParkIdler();
@@ -2036,11 +1999,13 @@ void filamentLoadWithBondTechGear() {
 		Serial.println(F("                                ignoring the 2nd 'C' command"));
 		return;
 	}
+
+	long timeUnparking;
+	timeUnparking = timeEnd - timeStart;
+	timeEnd = millis();
 #endif
 
 
-	timeEnd = millis();
-	timeUnparking = timeEnd - timeStart;
 	//*************************************************************************************************
 	//* following line of code is currently disabled (in order to test out the code above
 	//*  NOTE: I don't understand why the unParkIdler() command is not used instead ???
