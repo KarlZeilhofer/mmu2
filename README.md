@@ -40,3 +40,15 @@ pio run --target upload
 * Document Pinouts for each of the stepper motors
 * Document Pinouts for 2 sensor cables
 * Document Pinouts for Cable between MMU2 controller and MK3 controller (TX, RX, Reset, Vcc)
+
+### Official MMU Controller Board
+* Define correct pins
+  * Step signals 1-3
+  * Push buttons (analog input)
+  * stall detection inputs
+  * Shift register (data, clock, latch)
+    for Dir 1-3, Enable 1-3, LEDs (5x green, 5x red)
+  * chip selects for stepper drivers
+  * finda probe
+* Initialize stepper drivers
+* write shift register code

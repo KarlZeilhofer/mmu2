@@ -30,7 +30,7 @@
 //                   10.1.18  Added filament sensor to the extruder head (helps reliability
 
 
-//#include <SoftwareSerial.h>
+//#include <SoftwareSerialUI.h>
 #include <Arduino.h>
 #include <stdio.h>
 #include <string.h>
@@ -168,6 +168,7 @@ int colorSelectorStatus = INACTIVE;
 #define COLORSELECTORMOTORDELAY 60 // 60 useconds    (selector motor)
 
 
+#ifdef DIY_BOARD
 // added this pin as a debug pin (lights a green LED so I can see the 'C0' command in action
 #define greenLED 14
 
@@ -193,6 +194,19 @@ int colorSelectorStatus = INACTIVE;
 // this is pin D3 on the arduino MEGA 2650
 #define filamentSwitch 3       // this switch was added on 10.1.18 to help with filament loading (X- signal on the RAMPS board)
 
+#define SerialUI Serial // USB Serial
+#define SerialPrinter Serial1 // 5V UART to Prusa MK3
+
+#endif // DIY_BOARD
+
+
+#ifdef PRUSA_BOARD
+#define SerialUI Serial // USB Serial
+#define SerialPrinter Serial1 // 5V UART to Prusa MK3
+
+
+
+#endif // DIY_BOARD
 
 //SoftwareSerial Serial1(10,11); // RX, TX (communicates with the MK3 controller board
 
@@ -211,14 +225,13 @@ void Application::setup() {
 
 	int waitCount;
 
-
-	Serial.begin(500000);  // startup the local serial interface (changed to 2 Mbaud on 10.7.18
+	SerialUI.begin(500000);  // startup the local serial interface (changed to 2 Mbaud on 10.7.18
 	while (!Serial) {
 		; // wait for serial port to connect. needed for native USB port only
-		Serial.println(F("waiting for serial port"));
+		SerialUI.println(F("waiting for serial port"));
 	}
 
-	Serial.println(MMU2_VERSION);
+	SerialUI.println(MMU2_VERSION);
 
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// THIS DELAY IS CRITICAL DURING POWER UP/RESET TO PROPERLY SYNC WITH THE MK3 CONTROLLER BOARD
@@ -228,40 +241,40 @@ void Application::setup() {
 
 
 
-	Serial1.begin(115200);         // startup the mk3 serial
-	// Serial1.begin(115200;              // ATMEGA hardware serial interface
+	SerialPrinterbegin(115200);         // startup the mk3 serial
+	// SerialPrinterbegin(115200;              // ATMEGA hardware serial interface
 
-	//Serial.println(F("started the mk3 serial interface"));
+	//SerialUI.println(F("started the mk3 serial interface"));
 	delay(100);
 
 
-	Serial.println(F("Sending START command to mk3 controller board"));
+	SerialUI.println(F("Sending START command to mk3 controller board"));
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	// THIS NEXT COMMAND IS CRITICAL ... IT TELLS THE MK3 controller that an MMU is present
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-	Serial1.print(F("start\n"));                 // attempt to tell the mk3 that the mmu is present
+	SerialPrinterprint(F("start\n"));                 // attempt to tell the mk3 that the mmu is present
 
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//  check the serial interface to see if it is active
 	//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	waitCount = 0;
-	while (!Serial1.available()) {
+	while (!SerialPrinteravailable()) {
 
 		//delay(100);
-		Serial.println(F("Waiting for message from mk3"));
+		SerialUI.println(F("Waiting for message from mk3"));
 		delay(1000);
 		++waitCount;
 		if (waitCount >= 7) {
-			Serial.println(F("7 seconds have passed, aborting wait for mk3 to respond"));
+			SerialUI.println(F("7 seconds have passed, aborting wait for mk3 to respond"));
 			goto continue_processing;
 		}
 	}
-	Serial.println(F("inbound message from mk3"));
+	SerialUI.println(F("inbound message from mk3"));
 
 continue_processing:
 
 
-
+#ifdef DIY_BOARD
 	pinMode(idlerDirPin, OUTPUT);
 	pinMode(idlerStepPin, OUTPUT);
 
@@ -280,8 +293,13 @@ continue_processing:
 	pinMode(colorSelectorStepPin, OUTPUT);
 
 	pinMode(greenLED, OUTPUT);                         // green LED used for debug purposes
+#endif // DIY_BOARD
 
-	Serial.println(F("finished setting up input and output pins"));
+#ifdef PRUSA_BOARD
+
+#endif
+
+	SerialUI.println(F("finished setting up input and output pins"));
 
 
 
@@ -299,23 +317,23 @@ continue_processing:
 
 #ifdef NOTDEF
 	if (isFilamentLoaded()) {               // check to see if filament in the bowden tube (between the mmu2 and mk3
-		Serial.println(F("Filament was in the bowden tube at startup, unloading filament automatically"));
+		SerialUI.println(F("Filament was in the bowden tube at startup, unloading filament automatically"));
 		unloadFilamentToFinda();            //
 	}
 #endif
 
-	Serial.println(F("Syncing the Idler Selector Assembly"));             // do this before moving the selector motor
+	SerialUI.println(F("Syncing the Idler Selector Assembly"));             // do this before moving the selector motor
 	initIdlerPosition();    // reset the roller bearing position
 
 
-	Serial.println(F("Syncing the Filament Selector Assembly"));
+	SerialUI.println(F("Syncing the Filament Selector Assembly"));
 	if (!isFilamentLoaded()) {
 		initColorSelector();   // reset the color selector if there is NO filament present
 	} else {
-		Serial.println(F("Unable to clear the Color Selector, please remove filament"));
+		SerialUI.println(F("Unable to clear the Color Selector, please remove filament"));
 	}
 
-	Serial.println(F("Inialialization Complete, let's multicolor print ...."));
+	SerialUI.println(F("Inialialization Complete, let's multicolor print ...."));
 
 
 
@@ -328,7 +346,7 @@ void Application::loop() {
 	String kbString;
 
 
-	// Serial.println(F("looping"));
+	// SerialUI.println(F("looping"));
 	delay(100);                       // wait for 100 milliseconds
 	checkSerialInterface();           // check the serial interface for input commands from the mk3
 #ifdef NOTDEF
@@ -336,46 +354,46 @@ void Application::loop() {
 		int fstatus;
 
 		fstatus = digitalRead(filamentSwitch);
-		Serial.print(F("Filament Status: "));
-		Serial.println(fstatus);
+		SerialUI.print(F("Filament Status: "));
+		SerialUI.println(fstatus);
 		delay(1000);
 	}
 #endif
 
-	// Serial.println(F("Enter Filament Selection (1-5),Disengage Roller (D), Load Filament (L), Unload Filament (U), Test Color Extruder(T)"));
-	//Serial.print(F("FINDA status: "));
+	// SerialUI.println(F("Enter Filament Selection (1-5),Disengage Roller (D), Load Filament (L), Unload Filament (U), Test Color Extruder(T)"));
+	//SerialUI.print(F("FINDA status: "));
 	//fstatus = digitalRead(findaPin);
-	//Serial.println(fstatus);
+	//SerialUI.println(fstatus);
 
 
 	// check for keyboard input
 
-	if (Serial.available()) {
-		Serial.print(F("Key was hit "));
-		//c1 = Serial.read();
-		//c2 = Serial.read();
-		//c3 = Serial.read();
+	if (SerialUI.available()) {
+		SerialUI.print(F("Key was hit "));
+		//c1 = SerialUI.read();
+		//c2 = SerialUI.read();
+		//c3 = SerialUI.read();
 
-		kbString = Serial.readString();
-		// Serial.print(c1); Serial.print(F(" ")); Serial.println(F("c2"));
-		Serial.print(kbString);
+		kbString = SerialUI.readString();
+		// SerialUI.print(c1); SerialUI.print(F(" ")); SerialUI.println(F("c2"));
+		SerialUI.print(kbString);
 
 		if (kbString[0] == 'C') {
 			//if (c1 == 'C') {
-			Serial.println(F("Processing 'C' Command"));
+			SerialUI.println(F("Processing 'C' Command"));
 			filamentLoadWithBondTechGear();
 
 			//filamentLoadToMK3();
 		}
 		if (kbString[0] == 'T') {
 			//if (c1 == 'T') {
-			Serial.println(F("Processing 'T' Command"));
+			SerialUI.println(F("Processing 'T' Command"));
 			toolChange(kbString[1]);                 // invoke the tool change command
 			//toolChange(c2);
 			// processKeyboardInput();
 		}
 		if (kbString[0] == 'U') {
-			Serial.println(F("Processing 'U' Command"));
+			SerialUI.println(F("Processing 'U' Command"));
 
 			// parkIdler();                      // reset the idler               // added on 10.7.18 ... get in known state
 
@@ -407,21 +425,21 @@ void checkSerialInterface() {
 	int index;
 
 
-	// Serial.println(F("Waiting for communication with mk3"));
+	// SerialUI.println(F("Waiting for communication with mk3"));
 
 	// while (earlyCommands == 0) {
-	// Serial.println(F("waiting for response from mk3"));
+	// SerialUI.println(F("waiting for response from mk3"));
 	index = 0;
-	if ((cnt = Serial1.available()) > 0) {
+	if ((cnt = SerialPrinteravailable()) > 0) {
 
-		//Serial.print(F("chars received: "));
-		//Serial.println(cnt);
+		//SerialUI.print(F("chars received: "));
+		//SerialUI.println(cnt);
 
-		inputLine = Serial1.readString();      // fetch the command from the mmu2 serial input interface
+		inputLine = SerialPrinterreadString();      // fetch the command from the mmu2 serial input interface
 
 		if (inputLine[0] != 'P') {
-			Serial.print(F("MMU Command: "));
-			Serial.println(inputLine);
+			SerialUI.print(F("MMU Command: "));
+			SerialUI.println(inputLine);
 		}
 process_more_commands:  // parse the inbound command
 		unsigned char c1, c2;
@@ -445,28 +463,28 @@ process_more_commands:  // parse the inbound command
 				toolChange(c2);
 
 			} else {
-				Serial.println(F("T: Invalid filament Selection"));
+				SerialUI.println(F("T: Invalid filament Selection"));
 			}
 
 			// delay(200);                      //removed this 200msec delay on 10.5.18
-			Serial1.print(F("ok\n"));              // send command acknowledge back to mk3 controller
+			SerialPrinterprint(F("ok\n"));              // send command acknowledge back to mk3 controller
 			time5 = millis();          // grab the current time
 			break;
 		case 'C':
 			// move filament from selector ALL the way to printhead
 #ifdef NOTDEF
-			Serial.println(F("C: Moving filament to Bondtech gears"));
+			SerialUI.println(F("C: Moving filament to Bondtech gears"));
 #endif
 			// filamentLoadToMK3();
 			filamentLoadWithBondTechGear();
 			// delay(200);
-			Serial1.print(F("ok\n"));
+			SerialPrinterprint(F("ok\n"));
 			break;
 
 		case 'U':
 			// request for filament unload
 
-			Serial.println(F("U: Filament Unload Selected"));
+			SerialUI.println(F("U: Filament Unload Selected"));
 			//*******************************************************************************************************
 			//*  FIX:  don't go all the way to the end ... be smarter
 			//******************************************************************************************************
@@ -482,19 +500,19 @@ process_more_commands:  // parse the inbound command
 
 				unloadFilamentToFinda();
 				parkIdler();
-				Serial.println(F("U: Sending Filament Unload Acknowledge to MK3"));
+				SerialUI.println(F("U: Sending Filament Unload Acknowledge to MK3"));
 				delay(200);
-				Serial1.print(F("ok\n"));
+				SerialPrinterprint(F("ok\n"));
 
 			} else {
-				Serial.println(F("U: Invalid filament Unload Requested"));
+				SerialUI.println(F("U: Invalid filament Unload Requested"));
 				delay(200);
-				Serial1.print(F("ok\n"));
+				SerialPrinterprint(F("ok\n"));
 			}
 			break;
 		case 'L':
 			// request for filament load
-			Serial.println(F("L: Filament Load Selected"));
+			SerialUI.println(F("L: Filament Load Selected"));
 			if (idlerStatus == QUICKPARKED) {
 				quickUnParkIdler();             // un-park the idler from a quick park
 			}
@@ -508,45 +526,45 @@ process_more_commands:  // parse the inbound command
 
 			if ((c2 >= '0') && (c2 <= '4')) {
 
-				Serial.println(F("L: Moving the bearing idler"));
+				SerialUI.println(F("L: Moving the bearing idler"));
 				idlerSelector(c2);   // move the filament selector stepper motor to the right spot
-				Serial.println(F("L: Moving the color selector"));
+				SerialUI.println(F("L: Moving the color selector"));
 				colorSelector(c2);     // move the color Selector stepper Motor to the right spot
-				Serial.println(F("L: Loading the Filament"));
+				SerialUI.println(F("L: Loading the Filament"));
 				// loadFilament(CCW);
 				loadFilamentToFinda();
 				parkIdler();             // turn off the idler roller
 
-				Serial.println(F("L: Sending Filament Load Acknowledge to MK3"));
+				SerialUI.println(F("L: Sending Filament Load Acknowledge to MK3"));
 
 				delay(200);
 
-				Serial1.print(F("ok\n"));
+				SerialPrinterprint(F("ok\n"));
 
 
 
 			} else {
-				Serial.println(F("Error: Invalid Filament Number Selected"));
+				SerialUI.println(F("Error: Invalid Filament Number Selected"));
 			}
 			break;
 
 		case 'S':
 			// request for firmware version
-			// Serial.println(F("S Command received from MK3"));
+			// SerialUI.println(F("S Command received from MK3"));
 			// this is a serious hack since the serial interface is flaky at this point in time
 #ifdef NOTDEF
 			if (command == 1) {
-				Serial.println(F("S: Processing S2"));
-				Serial1.print(FW_BUILDNR);
-				Serial1.print(F("ok\n"));
+				SerialUI.println(F("S: Processing S2"));
+				SerialPrinterprint(FW_BUILDNR);
+				SerialPrinterprint(F("ok\n"));
 
 				command++;
 
 			}
 			if (command == 0) {
-				Serial.println(F("S: Processing S1"));
-				Serial1.print(FW_VERSION);
-				Serial1.print(F("ok\n"));
+				SerialUI.println(F("S: Processing S1"));
+				SerialPrinterprint(FW_VERSION);
+				SerialPrinterprint(F("ok\n"));
 
 				command++;
 			}
@@ -554,67 +572,67 @@ process_more_commands:  // parse the inbound command
 
 			switch (c2) {
 			case '0':
-				Serial.println(F("S: Sending back OK to MK3"));
-				Serial1.print(F("ok\n"));
+				SerialUI.println(F("S: Sending back OK to MK3"));
+				SerialPrinterprint(F("ok\n"));
 				break;
 			case '1':
-				Serial.println(F("S: FW Version Request"));
-				Serial1.print(FW_VERSION);
-				Serial1.print(F("ok\n"));
+				SerialUI.println(F("S: FW Version Request"));
+				SerialPrinterprint(FW_VERSION);
+				SerialPrinterprint(F("ok\n"));
 				break;
 			case '2':
-				Serial.println(F("S: Build Number Request"));
-				Serial.println(F("Initial Communication with MK3 Controller: Successful"));
-				Serial1.print(FW_BUILDNR);
-				Serial1.print(F("ok\n"));
+				SerialUI.println(F("S: Build Number Request"));
+				SerialUI.println(F("Initial Communication with MK3 Controller: Successful"));
+				SerialPrinterprint(FW_BUILDNR);
+				SerialPrinterprint(F("ok\n"));
 				break;
 			default:
-				Serial.println(F("S: Unable to process S Command"));
+				SerialUI.println(F("S: Unable to process S Command"));
 				break;
 			}  // switch(c2) check
 			break;
 		case 'P':
 
 			// check FINDA status
-			// Serial.println(F("Check FINDA Status Request"));
+			// SerialUI.println(F("Check FINDA Status Request"));
 			findaStatus = digitalRead(findaPin);
 			if (findaStatus == 0) {
-				// Serial.println(F("P: FINDA INACTIVE"));
-				Serial1.print(F("0"));
+				// SerialUI.println(F("P: FINDA INACTIVE"));
+				SerialPrinterprint(F("0"));
 			}
 			else {
-				// Serial.println(F("P: FINDA ACTIVE"));
-				Serial1.print(F("1"));
+				// SerialUI.println(F("P: FINDA ACTIVE"));
+				SerialPrinterprint(F("1"));
 			}
-			Serial1.print(F("ok\n"));
+			SerialPrinterprint(F("ok\n"));
 
 			break;
 		case 'F':                                         // 'F' command is acknowledged but no processing goes on at the moment
 			// will be useful for flexible material down the road
-			Serial.println(F("Filament Type Selected: "));
-			Serial.println(c2);
-			Serial1.print(F("ok\n"));                        // send back OK to the mk3
+			SerialUI.println(F("Filament Type Selected: "));
+			SerialUI.println(c2);
+			SerialPrinterprint(F("ok\n"));                        // send back OK to the mk3
 			break;
 		default:
-			Serial.print(F("ERROR: unrecognized command from the MK3 controller"));
-			Serial1.print(F("ok\n"));
+			SerialUI.print(F("ERROR: unrecognized command from the MK3 controller"));
+			SerialPrinterprint(F("ok\n"));
 
 
 		}  // end of switch statement
 #ifdef NOTDEF
 		if (cnt != 3) {
 
-			Serial.print(F("Index: "));
-			Serial.print(index);
-			Serial.print(F(" cnt: "));
-			Serial.println(cnt);
+			SerialUI.print(F("Index: "));
+			SerialUI.print(index);
+			SerialUI.print(F(" cnt: "));
+			SerialUI.println(cnt);
 		}
 #endif
 	}  // end of cnt > 0 check
 
 	if (index < cnt) {
 #ifdef NOTDEF
-		Serial.println(F("More commands in the buffer"));
+		SerialUI.println(F("More commands in the buffer"));
 #endif
 
 		goto process_more_commands;
@@ -631,11 +649,11 @@ void colorSelector(char selection) {
 	// this error check was added on 10.4.18
 
 	if ((selection < '0') || (selection > '4')) {
-		Serial.println(F("colorSelector():  Error, invalid filament selection"));
+		SerialUI.println(F("colorSelector():  Error, invalid filament selection"));
 		return;
 	}
 
-	// Serial.println(F("Entering colorSelector() routine"));
+	// SerialUI.println(F("Entering colorSelector() routine"));
 
 loop:
 	findaStatus = digitalRead(findaPin);    // check the pinda status ( DO NOT MOVE THE COLOR SELECTOR if filament is present)
@@ -698,12 +716,12 @@ loop:
 //* this routine is the common routine called for fixing the filament issues (loading or unloading)
 //****************************************************************************************************
 void fixTheProblem(String statement) {
-	Serial.println(F(""));
-	Serial.println(F("********************* ERROR ************************"));
-	Serial.println(statement);       // report the error to the user
-	Serial.println(F("********************* ERROR ************************"));
-	Serial.println(F("Clear the problem and then hit any key to continue "));
-	Serial.println(F(""));
+	SerialUI.println(F(""));
+	SerialUI.println(F("********************* ERROR ************************"));
+	SerialUI.println(statement);       // report the error to the user
+	SerialUI.println(F("********************* ERROR ************************"));
+	SerialUI.println(F("Clear the problem and then hit any key to continue "));
+	SerialUI.println(F(""));
 
 	parkIdler();                                    // park the idler stepper motor
 	digitalWrite(colorSelectorEnablePin, DISABLE);  // turn off the selector stepper motor
@@ -711,10 +729,10 @@ void fixTheProblem(String statement) {
 	//quickParkIdler();                   // move the idler out of the way
 	// specialParkIdler();
 
-	while (!Serial.available()) {
+	while (!SerialUI.available()) {
 		//  wait until key is entered to proceed  (this is to allow for operator intervention)
 	}
-	Serial.readString();  // clear the keyboard buffer
+	SerialUI.readString();  // clear the keyboard buffer
 
 	unParkIdler();                             // put the idler stepper motor back to its' original position
 	digitalWrite(colorSelectorEnablePin, ENABLE);  // turn ON the selector stepper motor
@@ -742,12 +760,12 @@ void csTurnAmount(int steps, int direction) {
 #ifdef DEBUG
 	int scount;
 
-	Serial.print(F("raw steps: "));
-	Serial.println(steps);
+	SerialUI.print(F("raw steps: "));
+	SerialUI.println(steps);
 
 	scount = steps * STEPSIZE;
-	Serial.print(F("total number of steps: "));
-	Serial.println(scount);
+	SerialUI.print(F("total number of steps: "));
+	SerialUI.println(scount);
 #endif
 
 	for (uint16_t i = 0; i <= (steps * STEPSIZE); i++) {                      // fixed this to '<=' from '<' on 10.5.18
@@ -788,11 +806,11 @@ void completeRevolution() {
 //
 void idlerturnamount(int steps, int dir) {
 #ifdef NOTDEF
-	Serial.println(F("moving the idler ..."));
-	Serial.print(F("steps: "));
-	Serial.print(steps);
-	Serial.print(F("dir: "));
-	Serial.println(dir);
+	SerialUI.println(F("moving the idler ..."));
+	SerialUI.print(F("steps: "));
+	SerialUI.print(steps);
+	SerialUI.print(F("dir: "));
+	SerialUI.println(dir);
 #endif
 
 	digitalWrite(idlerEnablePin, ENABLE);   // turn on motor
@@ -815,7 +833,7 @@ void idlerturnamount(int steps, int dir) {
 		delayMicroseconds(IDLERMOTORDELAY);
 	}
 #ifdef NOTDEF
-	Serial.println(F("finished moving the idler ..."));
+	SerialUI.println(F("finished moving the idler ..."));
 #endif
 
 }  // end of idlerturnamount() routine
@@ -848,7 +866,7 @@ loop:
 		goto loop;
 
 #ifdef NOTDEF
-	Serial.println(F("Pinda Sensor Triggered during Filament Load"));
+	SerialUI.println(F("Pinda Sensor Triggered during Filament Load"));
 #endif
 	//
 	// for a filament load ... need to get the filament out of the selector head !!!
@@ -863,7 +881,7 @@ loop:
 
 	feedFilament(STEPSPERMM * 23);      // after hitting the FINDA sensor, back away by 23 mm
 #ifdef NOTDEF
-	Serial.println(F("Loading Filament Complete ..."));
+	SerialUI.println(F("Loading Filament Complete ..."));
 #endif
 
 	// digitalWrite(ledPin, LOW);     // turn off LED
@@ -879,7 +897,7 @@ void unloadFilamentToFinda() {
 
 	if (!isFilamentLoaded()) {               // if the filament is already unloaded, do nothing
 
-		Serial.println(F("unloadFilamentToFinda():  filament already unloaded"));
+		SerialUI.println(F("unloadFilamentToFinda():  filament already unloaded"));
 		return;
 	}
 
@@ -930,7 +948,7 @@ loop:
 	//          goto loop;
 
 #ifdef NOTDEF
-	Serial.println(F("unloadFilamenttoFinda(): Pinda Sensor Triggered during Filament unload"));
+	SerialUI.println(F("unloadFilamenttoFinda(): Pinda Sensor Triggered during Filament unload"));
 #endif
 	//
 	// for a filament unload ... need to get the filament out of the selector head !!!
@@ -943,7 +961,7 @@ loop:
 	feedFilament(STEPSPERMM * 23);     // back the filament away from the selector by 23mm
 
 #ifdef NOTDEF
-	Serial.println(F("unloadFilamentToFinda(): Unloading Filament Complete ..."));
+	SerialUI.println(F("unloadFilamentToFinda(): Unloading Filament Complete ..."));
 #endif
 
 	// digitalWrite(ledPin, LOW);     // turn off LED
@@ -967,15 +985,15 @@ loop:
 		findaStatus = digitalRead(findaPin);
 		if (findaStatus == 0)              // keep feeding the filament until the pinda sensor triggers
 			goto loop;
-		Serial.println(F("Pinda Sensor Triggered"));
+		SerialUI.println(F("Pinda Sensor Triggered"));
 		// now feed the filament ALL the way to the printer extruder assembly
 
 		steps = 17ul * STEPSPERREVOLUTION * STEPSIZE;
 
-		Serial.print(F("steps: "));
-		Serial.println(steps);
+		SerialUI.print(F("steps: "));
+		SerialUI.println(steps);
 		feedFilament(steps);    // 17 complete revolutions
-		Serial.println(F("Loading Filament Complete ..."));
+		SerialUI.println(F("Loading Filament Complete ..."));
 		break;
 
 	case CW:                      // unload filament
@@ -984,14 +1002,14 @@ loop1:
 		findaStatus = digitalRead(findaPin);
 		if (findaStatus == 1)        // wait for the filament to unload past the pinda sensor
 			goto loop1;
-		Serial.println(F("Pinda Sensor Triggered, unloading filament complete"));
+		SerialUI.println(F("Pinda Sensor Triggered, unloading filament complete"));
 
 		feedFilament(STEPSPERMM * 23);      // move 23mm so we are out of the way of the selector
 
 
 		break;
 	default:
-		Serial.println(F("loadFilament:  I shouldn't be here !!!!"));
+		SerialUI.println(F("loadFilament:  I shouldn't be here !!!!"));
 	}
 }
 
@@ -1002,8 +1020,8 @@ loop1:
 void feedFilament(unsigned int steps) {
 #ifdef NOTDEF
 	if (steps > 1) {
-		Serial.print(F("Steps: "));
-		Serial.println(steps);
+		SerialUI.print(F("Steps: "));
+		SerialUI.println(steps);
 	}
 #endif
 
@@ -1031,8 +1049,8 @@ void idlerSelector(char filament) {
 	int newSetting;
 
 #ifdef DEBUG
-	Serial.print(F("idlerSelector(): Filament Selected: "));
-	Serial.println(filament);
+	SerialUI.print(F("idlerSelector(): Filament Selected: "));
+	SerialUI.println(filament);
 #endif
 
 	//* added on 10.14.18  (need to turn the extruder stepper motor back on since it is turned off by parkidler()
@@ -1040,17 +1058,17 @@ void idlerSelector(char filament) {
 
 
 	if ((filament < '0') || (filament > '4')) {
-		Serial.println(F("idlerSelector() ERROR, invalid filament selection"));
-		Serial.print(F("idlerSelector() filament: "));
-		Serial.println(filament);
+		SerialUI.println(F("idlerSelector() ERROR, invalid filament selection"));
+		SerialUI.print(F("idlerSelector() filament: "));
+		SerialUI.println(filament);
 		return;
 	}
 	// move the selector back to it's origin state
 
 #ifdef DEBUG
-	Serial.print(F("Old Idler Roller Bearing Position:"));
-	Serial.println(oldBearingPosition);
-	Serial.println(F("Moving filament selector"));
+	SerialUI.print(F("Old Idler Roller Bearing Position:"));
+	SerialUI.println(oldBearingPosition);
+	SerialUI.println(F("Moving filament selector"));
 #endif
 
 	switch (filament) {
@@ -1080,7 +1098,7 @@ void idlerSelector(char filament) {
 		currentExtruder = '4';
 		break;
 	default:
-		Serial.println(F("idlerSelector(): ERROR, Invalid Idler Bearing Position"));
+		SerialUI.println(F("idlerSelector(): ERROR, Invalid Idler Bearing Position"));
 		break;
 	}
 
@@ -1090,13 +1108,13 @@ void idlerSelector(char filament) {
 	newSetting = newBearingPosition - oldBearingPosition;
 
 #ifdef NOTDEF
-	Serial.print(F("Old Bearing Position: "));
-	Serial.println(oldBearingPosition);
-	Serial.print(F("New Bearing Position: "));
-	Serial.println(newBearingPosition);
+	SerialUI.print(F("Old Bearing Position: "));
+	SerialUI.println(oldBearingPosition);
+	SerialUI.print(F("New Bearing Position: "));
+	SerialUI.println(newBearingPosition);
 
-	Serial.print(F("New Setting: "));
-	Serial.println(newSetting);
+	SerialUI.print(F("New Setting: "));
+	SerialUI.println(newSetting);
 #endif
 
 	if (newSetting < 0) {
@@ -1115,7 +1133,7 @@ void idlerSelector(char filament) {
 void initIdlerPosition() {
 
 #ifdef NOTDEF
-	Serial.println(F("initIdlerPosition(): resetting the Idler Roller Bearing position"));
+	SerialUI.println(F("initIdlerPosition(): resetting the Idler Roller Bearing position"));
 #endif
 
 	digitalWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
@@ -1136,7 +1154,7 @@ void initIdlerPosition() {
 void initColorSelector() {
 
 #ifdef NOTDEF
-	Serial.println(F("Syncing the Color Selector Assembly"));
+	SerialUI.println(F("Syncing the Color Selector Assembly"));
 #endif
 	digitalWrite(colorSelectorEnablePin, ENABLE);   // turn on the stepper motor
 	delay(1);                                       // wait for 1 millisecond
@@ -1157,12 +1175,12 @@ void syncColorSelector() {
 	digitalWrite(colorSelectorEnablePin, ENABLE);   // turn on the selector stepper motor
 	delay(1);                                       // wait for 1 millecond
 
-	Serial.print(F("syncColorSelelector()   current Filament selection: "));
-	Serial.println(filamentSelection);
+	SerialUI.print(F("syncColorSelelector()   current Filament selection: "));
+	SerialUI.println(filamentSelection);
 	moveSteps = MAXSELECTOR_STEPS - selectorAbsPos[filamentSelection];
 
-	Serial.print(F("syncColorSelector()   moveSteps: "));
-	Serial.println(moveSteps);
+	SerialUI.print(F("syncColorSelector()   moveSteps: "));
+	SerialUI.println(moveSteps);
 
 	csTurnAmount(moveSteps, CW);                    // move all the way to the right
 	csTurnAmount(MAXSELECTOR_STEPS+20, CCW);        // move all the way to the left
@@ -1199,19 +1217,19 @@ void parkIdler() {
 	//oldBearingPosition = bearingAbsPos[filamentSelection];          // fetch the bearing position based on the filament state
 
 #ifdef DEBUGIDLER
-	Serial.print(F("parkIdler() oldBearingPosition: "));
-	Serial.print(oldBearingPosition);
+	SerialUI.print(F("parkIdler() oldBearingPosition: "));
+	SerialUI.print(oldBearingPosition);
 #endif
 #ifdef DEBUG
-	Serial.print(F("   filamentSelection: "));
-	Serial.println(filamentSelection);
+	SerialUI.print(F("   filamentSelection: "));
+	SerialUI.println(filamentSelection);
 #endif
 
 	newSetting = MAXROLLERTRAVEL - oldBearingPosition;
 
 #ifdef DEBUG
-	Serial.print(F("parkIdler() DeactiveRoller newSetting: "));
-	Serial.println(newSetting);
+	SerialUI.print(F("parkIdler() DeactiveRoller newSetting: "));
+	SerialUI.println(newSetting);
 #endif
 
 	idlerturnamount(newSetting, CCW);     // move the bearing roller out of the way
@@ -1236,7 +1254,7 @@ void unParkIdler() {
 
 	delay(1);                              // wait for 10 useconds
 
-	//Serial.println(F("Activating the Idler Rollers"));
+	//SerialUI.println(F("Activating the Idler Rollers"));
 
 	rollerSetting = MAXROLLERTRAVEL - bearingAbsPos[filamentSelection];
 	//************** added on 10.13.18
@@ -1244,8 +1262,8 @@ void unParkIdler() {
 	oldBearingPosition = bearingAbsPos[filamentSelection];                   // update the idler bearing position
 
 
-	//Serial.print(F("unParkIdler() Idler Setting: "));
-	//Serial.println(rollerSetting);
+	//SerialUI.print(F("unParkIdler() Idler Setting: "));
+	//SerialUI.println(rollerSetting);
 
 	idlerturnamount(rollerSetting, CW);    // restore the old position
 	idlerStatus = ACTIVE;                   // mark the idler as active
@@ -1275,8 +1293,8 @@ void quickParkIdler() {
 
 	//*************************************************************************************************
 #ifdef NOTDEF
-	Serial.print(F("quickparkidler():  currentExtruder: "));
-	Serial.println(currentExtruder);
+	SerialUI.print(F("quickparkidler():  currentExtruder: "));
+	SerialUI.println(currentExtruder);
 #endif
 
 	//* COMMENTED OUT THIS SECTION OF CODE on 10.13.18  (don't think it is necessary)
@@ -1301,8 +1319,8 @@ void quickParkIdler() {
 	//***********************************************************************************************
 	oldBearingPosition = oldBearingPosition + IDLERSTEPSIZE;       // record the current position of the IDLER bearing
 #ifdef NOTDEF
-	Serial.print(F("quickparkidler() oldBearingPosition: "));
-	Serial.println(oldBearingPosition);
+	SerialUI.print(F("quickparkidler() oldBearingPosition: "));
+	SerialUI.println(oldBearingPosition);
 #endif
 
 	idlerStatus = QUICKPARKED;                 // use this new state to show the idler is pending the 'C0' command
@@ -1328,13 +1346,13 @@ void quickUnParkIdler() {
 	//digitalWrite(idlerEnablePin, ENABLE);   // turn on the roller bearing motor
 	//delay(1);                              // wait for 1 millisecond
 	//if (idlerStatus != QUICKPARKED) {
-	//    Serial.println(F("quickUnParkIdler(): idler already parked"));
+	//    SerialUI.println(F("quickUnParkIdler(): idler already parked"));
 	//    return;                              // do nothing since the idler is not 'quick parked'
 	//}
 
 #ifdef NOTDEF
-	Serial.print(F("quickunparkidler():  currentExtruder: "));
-	Serial.println(currentExtruder);
+	SerialUI.print(F("quickunparkidler():  currentExtruder: "));
+	SerialUI.println(currentExtruder);
 #endif
 
 
@@ -1354,14 +1372,14 @@ void quickUnParkIdler() {
 	}
 #endif
 
-	//Serial.print(F("unParkIdler() Idler Setting: "));
-	//Serial.println(rollerSetting);
+	//SerialUI.print(F("unParkIdler() Idler Setting: "));
+	//SerialUI.println(rollerSetting);
 
 	//************************************************************************************************
 	//* track the absolute position of the idler  (changed on 10.13.18
 	//***********************************************************************************************
-	Serial.print(F("quickunparkidler(): oldBearingPosition"));
-	Serial.println(oldBearingPosition);
+	SerialUI.print(F("quickunparkidler(): oldBearingPosition"));
+	SerialUI.println(oldBearingPosition);
 	oldBearingPosition = rollerSetting - IDLERSTEPSIZE;    // keep track of the idler position
 
 	idlerStatus = ACTIVE;                   // mark the idler as active
@@ -1394,8 +1412,8 @@ void specialParkIdler() {
 	}
 
 #ifdef NOTDEF
-	Serial.print(F("SpecialParkIdler()   idlersteps: "));
-	Serial.println(idlerSteps);
+	SerialUI.print(F("SpecialParkIdler()   idlersteps: "));
+	SerialUI.println(idlerSteps);
 #endif
 
 	//newSetting = oldBearingPosition + idlerSteps;     // try to move 6 units (just to disengage the roller)
@@ -1407,8 +1425,8 @@ void specialParkIdler() {
 	oldBearingPosition = oldBearingPosition + idlerSteps;       // record the current position of the IDLER bearingT
 
 #ifdef DEBUGIDLER
-	Serial.print(F("SpecialParkIdler()  oldBearingPosition: "));
-	Serial.println(oldBearingPosition);
+	SerialUI.print(F("SpecialParkIdler()  oldBearingPosition: "));
+	SerialUI.println(oldBearingPosition);
 #endif
 
 	idlerStatus = QUICKPARKED;                 // use this new state to show the idler is pending the 'C0' command
@@ -1440,13 +1458,13 @@ void specialUnParkIdler() {
 	}
 
 #ifdef NOTDEF
-	Serial.print(F("SpecialUnParkIdler()   idlersteps: "));
-	Serial.println(idlerSteps);
+	SerialUI.print(F("SpecialUnParkIdler()   idlersteps: "));
+	SerialUI.println(idlerSteps);
 #endif
 
 #ifdef DEBUGIDLER
-	Serial.print(F("SpecialUnParkIdler()   oldBearingPosition (beginning of routine): "));
-	Serial.println(oldBearingPosition);
+	SerialUI.print(F("SpecialUnParkIdler()   oldBearingPosition (beginning of routine): "));
+	SerialUI.println(oldBearingPosition);
 #endif
 
 	//newSetting = oldBearingPosition - idlerSteps; // go back IDLERSTEPSIZE units (hopefully re-enages the bearing
@@ -1456,8 +1474,8 @@ void specialUnParkIdler() {
 	oldBearingPosition = oldBearingPosition - idlerSteps;    // keep track of the idler position
 
 #ifdef DEBUGIDLER
-	Serial.print(F("SpecialUnParkIdler()  oldBearingPosition: (end of routine):  "));
-	Serial.println(oldBearingPosition);
+	SerialUI.print(F("SpecialUnParkIdler()  oldBearingPosition: (end of routine):  "));
+	SerialUI.println(oldBearingPosition);
 #endif
 
 	idlerStatus = ACTIVE;                   // mark the idler as active
@@ -1483,16 +1501,16 @@ void activateColorSelector() {
 
 
 void recvOneChar() {
-	if (Serial.available() > 0) {
-		receivedChar = Serial.read();
+	if (SerialUI.available() > 0) {
+		receivedChar = SerialUI.read();
 		newData = true;
 	}
 }
 
 void showNewData() {
 	if (newData == true) {
-		Serial.print(F("This just in ... "));
-		Serial.println(receivedChar);
+		SerialUI.print(F("This just in ... "));
+		SerialUI.println(receivedChar);
 		newData = false;
 	}
 }
@@ -1508,8 +1526,8 @@ void processKeyboardInput() {
 
 	showNewData();      // character received
 
-	Serial.print(F("Filament Selected: "));
-	Serial.println(receivedChar);
+	SerialUI.print(F("Filament Selected: "));
+	SerialUI.println(receivedChar);
 
 	switch (receivedChar) {
 	case '1':
@@ -1554,7 +1572,7 @@ void processKeyboardInput() {
 		csTurnAmount(200, CCW);
 		break;
 	default:
-		Serial.println(F("Invalid Serial Output Selection"));
+		SerialUI.println(F("Invalid Serial Output Selection"));
 	} // end of switch statement
 }
 #endif
@@ -1571,14 +1589,14 @@ void filamentLoadToMK3() {
 
 
 	if ((currentExtruder < '0')  || (currentExtruder > '4')) {
-		Serial.println(F("filamentLoadToMK3(): fixing current extruder variable"));
+		SerialUI.println(F("filamentLoadToMK3(): fixing current extruder variable"));
 		currentExtruder = '0';
 	}
 #ifdef DEBUG
-	Serial.println(F("Attempting to move Filament to Print Head Extruder Bondtech Gears"));
+	SerialUI.println(F("Attempting to move Filament to Print Head Extruder Bondtech Gears"));
 	//unParkIdler();
-	Serial.print(F("filamentLoadToMK3():  currentExtruder: "));
-	Serial.println(currentExtruder);
+	SerialUI.print(F("filamentLoadToMK3():  currentExtruder: "));
+	SerialUI.println(currentExtruder);
 #endif
 
 	// idlerSelector(currentExtruder);        // active the idler before the filament load
@@ -1619,7 +1637,7 @@ loop1:
 
 
 
-	//Serial.println(F("filamentLoadToMK3(): Pinda Sensor Triggered during Filament Load"));
+	//SerialUI.println(F("filamentLoadToMK3(): Pinda Sensor Triggered during Filament Load"));
 	// now loading from the FINDA sensor all the way down to the NEW filament sensor
 
 	feedFilament(STEPSPERMM * 350);       // go 350 mm then look for the 2nd filament sensor
@@ -1648,11 +1666,11 @@ loop1:
 		filamentDistance++;
 		fStatus = digitalRead(filamentSwitch);             // read the filament switch on the mk3 extruder
 		if (fStatus == 0) {
-			// Serial.println(F("filament switch triggered"));
+			// SerialUI.println(F("filament switch triggered"));
 			flag = 1;
 
-			Serial.print(F("Filament distance traveled (mm): "));
-			Serial.println(filamentDistance);
+			SerialUI.print(F("Filament distance traveled (mm): "));
+			SerialUI.println(filamentDistance);
 
 			switch (filamentSelection) {
 			case 0:
@@ -1713,7 +1731,7 @@ loop1:
 				f4Avg = f4Distance / f4ToolChange;
 				break;
 			default:
-				Serial.println(F("Error, Invalid Filament Selection"));
+				SerialUI.println(F("Error, Invalid Filament Selection"));
 
 			}
 			// printFilamentStats();
@@ -1734,66 +1752,66 @@ loop1:
 	// parkIdler();              // park the IDLER (bearing) motor
 
 	//delay(200);             // removed on 10.5.18
-	//Serial1.print(F("ok\n"));    // send back acknowledge to the mk3 controller (removed on 10.5.18)
+	//SerialPrinterprint(F("ok\n"));    // send back acknowledge to the mk3 controller (removed on 10.5.18)
 
 }
 
 void printFilamentStats() {
-	Serial.println(F(" "));
-	Serial.print(F("F0 Min: "));
-	Serial.print(f0Min);
-	Serial.print(F("  F0 Max: "));
-	Serial.print(f0Max);
-	Serial.print(F("  F0 Avg: "));
-	Serial.print(f0Avg);
-	Serial.print(F("  F0 Length: "));
-	Serial.print(f0Distance);
-	Serial.print(F("  F0 count: "));
-	Serial.println(f0ToolChange);
+	SerialUI.println(F(" "));
+	SerialUI.print(F("F0 Min: "));
+	SerialUI.print(f0Min);
+	SerialUI.print(F("  F0 Max: "));
+	SerialUI.print(f0Max);
+	SerialUI.print(F("  F0 Avg: "));
+	SerialUI.print(f0Avg);
+	SerialUI.print(F("  F0 Length: "));
+	SerialUI.print(f0Distance);
+	SerialUI.print(F("  F0 count: "));
+	SerialUI.println(f0ToolChange);
 
-	Serial.print(F("F1 Min: "));
-	Serial.print(f1Min);
-	Serial.print(F("  F1 Max: "));
-	Serial.print(f1Max);
-	Serial.print(F("  F1 Avg: "));
-	Serial.print(f1Avg);
-	Serial.print(F("  F1 Length: "));
-	Serial.print(f1Distance);
-	Serial.print(F("  F1 count: "));
-	Serial.println(f1ToolChange);
+	SerialUI.print(F("F1 Min: "));
+	SerialUI.print(f1Min);
+	SerialUI.print(F("  F1 Max: "));
+	SerialUI.print(f1Max);
+	SerialUI.print(F("  F1 Avg: "));
+	SerialUI.print(f1Avg);
+	SerialUI.print(F("  F1 Length: "));
+	SerialUI.print(f1Distance);
+	SerialUI.print(F("  F1 count: "));
+	SerialUI.println(f1ToolChange);
 
-	Serial.print(F("F2 Min: "));
-	Serial.print(f2Min);
-	Serial.print(F("  F2 Max: "));
-	Serial.print(f2Max);
-	Serial.print(F("  F2 Avg: "));
-	Serial.print(f2Avg);
-	Serial.print(F("  F2 Length: "));
-	Serial.print(f2Distance);
-	Serial.print(F("  F2 count: "));
-	Serial.println(f2ToolChange);
+	SerialUI.print(F("F2 Min: "));
+	SerialUI.print(f2Min);
+	SerialUI.print(F("  F2 Max: "));
+	SerialUI.print(f2Max);
+	SerialUI.print(F("  F2 Avg: "));
+	SerialUI.print(f2Avg);
+	SerialUI.print(F("  F2 Length: "));
+	SerialUI.print(f2Distance);
+	SerialUI.print(F("  F2 count: "));
+	SerialUI.println(f2ToolChange);
 
-	Serial.print(F("F3 Min: "));
-	Serial.print(f3Min);
-	Serial.print(F("  F3 Max: "));
-	Serial.print(f3Max);
-	Serial.print(F("  F3 Avg: "));
-	Serial.print(f3Avg);
-	Serial.print(F("  F3 Length: "));
-	Serial.print(f3Distance);
-	Serial.print(F("  F3 count: "));
-	Serial.println(f3ToolChange);
+	SerialUI.print(F("F3 Min: "));
+	SerialUI.print(f3Min);
+	SerialUI.print(F("  F3 Max: "));
+	SerialUI.print(f3Max);
+	SerialUI.print(F("  F3 Avg: "));
+	SerialUI.print(f3Avg);
+	SerialUI.print(F("  F3 Length: "));
+	SerialUI.print(f3Distance);
+	SerialUI.print(F("  F3 count: "));
+	SerialUI.println(f3ToolChange);
 
-	Serial.print(F("F4 Min: "));
-	Serial.print(f4Min);
-	Serial.print(F("  F4 Max: "));
-	Serial.print(f4Max);
-	Serial.print(F("  F4 Avg: "));
-	Serial.print(f4Avg);
-	Serial.print(F("  F4 Length: "));
-	Serial.print(f4Distance);
-	Serial.print(F("  F4 count: "));
-	Serial.println(f4ToolChange);
+	SerialUI.print(F("F4 Min: "));
+	SerialUI.print(f4Min);
+	SerialUI.print(F("  F4 Max: "));
+	SerialUI.print(f4Max);
+	SerialUI.print(F("  F4 Avg: "));
+	SerialUI.print(f4Avg);
+	SerialUI.print(F("  F4 Length: "));
+	SerialUI.print(f4Distance);
+	SerialUI.print(F("  F4 count: "));
+	SerialUI.println(f4ToolChange);
 
 }
 
@@ -1818,12 +1836,12 @@ void toolChange( char selection) {
 	//            filament position '0' move the color selection ALL the way to the left
 	//*********************************************************************************
 	if (selection == '0')  {
-		// Serial.println(F("toolChange()  filament '0' selected: resetting tracktoolchanges counter"));
+		// SerialUI.println(F("toolChange()  filament '0' selected: resetting tracktoolchanges counter"));
 		trackToolChanges = 0;
 	}
 
-	Serial.print(F("Tool Change Count: "));
-	Serial.println(toolChangeCount);
+	SerialUI.print(F("Tool Change Count: "));
+	SerialUI.println(toolChangeCount);
 
 
 	newExtruder = selection - 0x30;                // convert ASCII to a number (0-4)
@@ -1836,7 +1854,7 @@ void toolChange( char selection) {
 
 		if (!isFilamentLoaded() ) {            // no filament loaded
 
-			Serial.println(F("toolChange: filament not currently loaded, loading ..."));
+			SerialUI.println(F("toolChange: filament not currently loaded, loading ..."));
 
 			idlerSelector(selection);   // move the filament selector stepper motor to the right spot
 			colorSelector(selection);     // move the color Selector stepper Motor to the right spot
@@ -1848,7 +1866,7 @@ void toolChange( char selection) {
 			repeatTCmdFlag = INACTIVE;   // used to help the 'C' command
 			//loadFilamentToFinda();
 		} else {
-			Serial.println(F("toolChange:  filament already loaded to mk3 extruder"));
+			SerialUI.println(F("toolChange:  filament already loaded to mk3 extruder"));
 			//*********************************************************************************************
 			//* added on 10.8.18 to help the 'C' Command
 			//*********************************************************************************************
@@ -1856,7 +1874,7 @@ void toolChange( char selection) {
 		}
 
 		//                               else {                           // added on 9.24.18 to
-		//                                     Serial.println(F("Filament already loaded, unloading the filament"));
+		//                                     SerialUI.println(F("Filament already loaded, unloading the filament"));
 		//                                     idlerSelector(selection);
 		//                                     unloadFilamentToFinda();
 		//                               }
@@ -1872,7 +1890,7 @@ void toolChange( char selection) {
 			// idlerSelector(currentExtruder);
 			//**************************************************************
 #ifdef DEBUG
-			Serial.println(F("Unloading filament"));
+			SerialUI.println(F("Unloading filament"));
 #endif
 
 			idlerSelector(currentExtruder);    // point to the current extruder
@@ -1884,7 +1902,7 @@ void toolChange( char selection) {
 
 
 		if (trackToolChanges > TOOLSYNC) {             // reset the color selector stepper motor (gets out of alignment)
-			Serial.println(F("Synchronizing the Filament Selector Head"));
+			SerialUI.println(F("Synchronizing the Filament Selector Head"));
 			//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// NOW HAVE A MORE ELEGANT APPROACH - syncColorSelector (and it works)
 			// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -1901,15 +1919,15 @@ void toolChange( char selection) {
 
 		}
 #ifdef DEBUG
-		Serial.println(F("Selecting the proper Idler Location"));
+		SerialUI.println(F("Selecting the proper Idler Location"));
 #endif
 		idlerSelector(selection);
 #ifdef DEBUG
-		Serial.println(F("Selecting the proper Selector Location"));
+		SerialUI.println(F("Selecting the proper Selector Location"));
 #endif
 		colorSelector(selection);
 #ifdef DEBUG
-		Serial.println(F("Loading Filament: loading the new filament to the mk3"));
+		SerialUI.println(F("Loading Filament: loading the new filament to the mk3"));
 #endif
 
 		filamentLoadToMK3();                // moves the idler and loads the filament
@@ -1950,7 +1968,7 @@ void filamentLoadWithBondTechGear() {
 
 
 	if (repeatTCmdFlag == ACTIVE) {
-		Serial.println(F("filamentLoadWithBondTechGear(): filament already loaded and 'C' command already processed"));
+		SerialUI.println(F("filamentLoadWithBondTechGear(): filament already loaded and 'C' command already processed"));
 		repeatTCmdFlag = INACTIVE;
 		return;
 	}
@@ -1960,12 +1978,12 @@ void filamentLoadWithBondTechGear() {
 	findaStatus = digitalRead(findaPin);
 
 	if (findaStatus == 0) {
-		Serial.println(F("filamentLoadWithBondTechGear()  Error, filament sensor thinks there is no filament"));
+		SerialUI.println(F("filamentLoadWithBondTechGear()  Error, filament sensor thinks there is no filament"));
 		return;
 	}
 
 	if ((currentExtruder < '0')  || (currentExtruder > '4')) {
-		Serial.println(F("filamentLoadWithBondTechGear(): fixing current extruder variable"));
+		SerialUI.println(F("filamentLoadWithBondTechGear(): fixing current extruder variable"));
 		currentExtruder = '0';
 	}
 
@@ -1982,10 +2000,10 @@ void filamentLoadWithBondTechGear() {
 	timeStart = millis();
 #endif
 	if (idlerStatus == QUICKPARKED) {                        // make sure idler is  in the pending state (set by quickparkidler() routine)
-		// Serial.println(F("'C' Command: quickUnParking the Idler"));
+		// SerialUI.println(F("'C' Command: quickUnParking the Idler"));
 		// quickUnParkIdler();
 #ifdef NOTDEF
-		Serial.println(F("filamentLoadWithBondTechGear()  calling specialunparkidler() routine"));
+		SerialUI.println(F("filamentLoadWithBondTechGear()  calling specialunparkidler() routine"));
 #endif
 		specialUnParkIdler();                                // PLACEHOLDER attempt to speed up the idler engagement a little more 10.13.18
 	}
@@ -1995,8 +2013,8 @@ void filamentLoadWithBondTechGear() {
 
 #ifdef NOTDEF
 	else {
-		Serial.println(F("filamentLoadWithBondTechGear(): looks like I received two 'C' commands in a row"));
-		Serial.println(F("                                ignoring the 2nd 'C' command"));
+		SerialUI.println(F("filamentLoadWithBondTechGear(): looks like I received two 'C' commands in a row"));
+		SerialUI.println(F("                                ignoring the 2nd 'C' command"));
 		return;
 	}
 
@@ -2039,8 +2057,8 @@ void filamentLoadWithBondTechGear() {
 	delayFactor = (float(LOAD_DURATION * 1000.0) / tSteps) - INSTRUCTION_DELAY;            // 2nd attempt at delayFactor algorithm
 
 #ifdef NOTDEF
-	Serial.print(F("Tsteps: "));
-	Serial.println(tSteps);
+	SerialUI.print(F("Tsteps: "));
+	SerialUI.println(tSteps);
 #endif
 
 	for (i = 0; i < tSteps; i++) {
@@ -2086,7 +2104,7 @@ void filamentLoadWithBondTechGear() {
 #endif
 
 #ifdef DEBUG
-	Serial.println(F("C Command: parking the idler"));
+	SerialUI.println(F("C Command: parking the idler"));
 #endif
 	//***************************************************************************************************************************
 	//*  this disengags the idler pulley after the 'C' command has been exectuted
@@ -2107,40 +2125,40 @@ void filamentLoadWithBondTechGear() {
 
 	printFilamentStats();   // print current Filament Stats
 
-	Serial.print(F("'T' Command processing time (ms): "));
-	Serial.println(time5 - time4);
-	Serial.print(F("'C' Command processing time (ms): "));
-	Serial.println(timeCEnd - timeCStart);
+	SerialUI.print(F("'T' Command processing time (ms): "));
+	SerialUI.println(time5 - time4);
+	SerialUI.print(F("'C' Command processing time (ms): "));
+	SerialUI.println(timeCEnd - timeCStart);
 
 #ifdef NOTDEF
-	Serial.print(F("Time 'T' Command Received: "));
-	Serial.println(time4);
-	Serial.print(F("Time 'T' Command Completed: "));
-	Serial.println(time5);
+	SerialUI.print(F("Time 'T' Command Received: "));
+	SerialUI.println(time4);
+	SerialUI.print(F("Time 'T' Command Completed: "));
+	SerialUI.println(time5);
 #endif
 
 #ifdef NOTDEF
-	Serial.print(F("Time 'C' Command Received: "));
-	Serial.println(time3);
+	SerialUI.print(F("Time 'C' Command Received: "));
+	SerialUI.println(time3);
 #endif
 
 
-	Serial.print(F("Time in Critical Load Loop: "));
-	Serial.println(time1 - time0);
+	SerialUI.print(F("Time in Critical Load Loop: "));
+	SerialUI.println(time1 - time0);
 
 #ifdef NOTDEF
-	Serial.print(F("Time at Parking the Idler Complete: "));
-	Serial.println(time2);
-	Serial.print(F("Number of commanded steps to the Extruder: "));
-	Serial.println(stepCount);
-	Serial.print(F("Computed Delay Factor: "));
-	Serial.println(delayFactor);
-	Serial.print(F("Time Unparking: "));
-	Serial.println(timeUnparking);
+	SerialUI.print(F("Time at Parking the Idler Complete: "));
+	SerialUI.println(time2);
+	SerialUI.print(F("Number of commanded steps to the Extruder: "));
+	SerialUI.println(stepCount);
+	SerialUI.print(F("Computed Delay Factor: "));
+	SerialUI.println(delayFactor);
+	SerialUI.print(F("Time Unparking: "));
+	SerialUI.println(timeUnparking);
 #endif
 
 #ifdef DEBUG
-	Serial.println(F("filamentLoadToMK3(): Loading Filament to Print Head Complete"));
+	SerialUI.println(F("filamentLoadToMK3(): Loading Filament to Print Head Complete"));
 #endif
 
 }

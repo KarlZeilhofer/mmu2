@@ -9,6 +9,8 @@
 //#define CRAZYIVAN
 //#define TURNOFFSELECTORMOTOR
 
+#define DIY_BOARD
+#define PRUSA_BOARD
 
 #endif // CONFIG_H
 
