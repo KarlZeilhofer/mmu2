@@ -61,7 +61,7 @@ static const PinNr redLedPins[] =   {0x100+6,0x100+14,0x100+12,0x100+10,0x100+8}
 // inputs:
 static const PinNr findaPin = A1;
 static const PinNr chindaPin = 7; // Arduiono D7; pin 6 on connector P7
-// chinda combines Chuck with Finda :)
+	// chinda combines Chuck with Finda :)
 
 #endif // DIY_BOARD
 
@@ -69,10 +69,10 @@ static const PinNr chindaPin = 7; // Arduiono D7; pin 6 on connector P7
 class Application
 {
 public:
-    Application();
+	Application();
 
-    void setup();
-    void loop();
+	void setup();
+	void loop();
 };
 
 #endif // APPLICATION_H
