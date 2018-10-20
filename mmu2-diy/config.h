@@ -16,6 +16,9 @@
 //#define DIY_BOARD
 #define PRUSA_BOARD
 
+#define TEST_LEDs // successfully tested
+#define TEST_AXIS
+
 #endif // CONFIG_H
 
 

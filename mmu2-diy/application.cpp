@@ -168,9 +168,53 @@ int f0ToolChange, f1ToolChange, f2ToolChange, f3ToolChange, f4ToolChange = 0;
 unsigned long time0, time1, time2, time3, time4, time5;
 unsigned long timeCStart, timeCEnd;
 
+#ifdef TEST_LEDs
+void testLeds()
+{
+    while (1) {
+        for (int i = 0; i < 10; i++) {
+            if (i % 2 == 0) {
+                pinWrite(redLedPins[i / 2], 1);
+                delay(100);
+                pinWrite(redLedPins[i / 2], 0);
+                delay(300);
+            } else {
+                pinWrite(greenLedPins[i / 2], 1);
+                delay(100);
+                pinWrite(greenLedPins[i / 2], 0);
+                delay(300);
+            }
+        }
+    }
+}
+
+#endif
+
+#define TEST_AXIS
+void testAxis()
+{
+
+}
+
+#endif
 
 void Application::setup()
 {
+#ifdef TEST_LEDs
+    testLeds();
+#endif
+
+    axIdler = new Axis(idlerEnablePin, idlerDirPin, idlerStepPin, idlerCsPin, 200, 16, MAX_IDLER_STEPS);
+    axSelector = new Axis(colorSelectorEnablePin, colorSelectorDirPin, colorSelectorStepPin,
+                          colorSelectorCsPin, 200, 2, 1850);
+    axPulley = new Axis(extruderEnablePin, extruderDirPin, extruderStepPin, extruderCsPin, 200, 2, 0);
+    // TODO 0: hier gehts weiter!
+
+#define TEST_AXIS
+    testAxis();
+#endif
+
+
     // static int findaStatus;
 
     int waitCount;
@@ -474,8 +518,9 @@ process_more_commands:  // parse the inbound command
             }
 
 
-            if (colorSelectorStatus == INACTIVE)
-                activateColorSelector();         // turn on the color selector motor
+            if (colorSelectorStatus == INACTIVE) {
+                activateColorSelector();    // turn on the color selector motor
+            }
 
             if ((c2 >= '0') && (c2 <= '4')) {
 
@@ -707,10 +752,11 @@ void csTurnAmount(int steps, int direction)
     pinWrite(colorSelectorEnablePin, ENABLE );    // turn on the color selector motor
     // delayMicroseconds(1500);                                       // wait for 1.5 milliseconds          added on 10.4.18
 
-    if (direction == CW)
-        pinWrite(colorSelectorDirPin, LOW);      // set the direction for the Color Extruder Stepper Motor
-    else
+    if (direction == CW) {
+        pinWrite(colorSelectorDirPin, LOW);    // set the direction for the Color Extruder Stepper Motor
+    } else {
         pinWrite(colorSelectorDirPin, HIGH);
+    }
     // wait 1 milliseconds
     delayMicroseconds(
         1500);                      // changed from 500 to 1000 microseconds on 10.6.18, changed to 1500 on 10.7.18)
@@ -825,8 +871,9 @@ loop:
     feedFilament(STEPSPERMM);  // go 144 steps (1 mm) and then check the finda status
 
     findaStatus = digitalRead(findaPin);
-    if (findaStatus == 0)              // keep feeding the filament until the pinda sensor triggers
+    if (findaStatus == 0) {            // keep feeding the filament until the pinda sensor triggers
         goto loop;
+    }
 
 #ifdef NOTDEF
     SerialUI.println(F("Pinda Sensor Triggered during Filament Load"));
@@ -951,8 +998,9 @@ loop:
         feedFilament(1);        // 1 step and then check the pinda status
 
         findaStatus = digitalRead(findaPin);
-        if (findaStatus == 0)              // keep feeding the filament until the pinda sensor triggers
+        if (findaStatus == 0) {            // keep feeding the filament until the pinda sensor triggers
             goto loop;
+        }
         SerialUI.println(F("Pinda Sensor Triggered"));
         // now feed the filament ALL the way to the printer extruder assembly
 
@@ -968,8 +1016,9 @@ loop:
 loop1:
         feedFilament(STEPSPERMM);            // 1 mm and then check the pinda status
         findaStatus = digitalRead(findaPin);
-        if (findaStatus == 1)        // wait for the filament to unload past the pinda sensor
+        if (findaStatus == 1) {      // wait for the filament to unload past the pinda sensor
             goto loop1;
+        }
         SerialUI.println(F("Pinda Sensor Triggered, unloading filament complete"));
 
         feedFilament(STEPSPERMM * 23);      // move 23mm so we are out of the way of the selector
@@ -1044,7 +1093,7 @@ void idlerSelector(char filament)
 
     if (filament >= '0' && filament <= '4') {
         newBearingPosition = bearingAbsPos[filament -
-                                           '0'];                       // idler set to 1st position
+                                                    '0'];                       // idler set to 1st position
         filamentSelection = filament - '0';
         currentExtruder = filament;
     } else {
@@ -1509,11 +1558,13 @@ void processKeyboardInput()
     case '3':
     case '4':
     case '5':
-        if (idlerStatus == INACTIVE)
+        if (idlerStatus == INACTIVE) {
             activateRollers();
+        }
 
-        if (colorSelectorStatus == INACTIVE)
-            activateColorSelector();         // turn on the color selector motor
+        if (colorSelectorStatus == INACTIVE) {
+            activateColorSelector();    // turn on the color selector motor
+        }
 
 
         idlerSelector(receivedChar);   // move the filament selector stepper motor to the right spot
@@ -1528,8 +1579,9 @@ void processKeyboardInput()
     case 'l':                            // start the load process for the filament
     case 'L':
         // unParkIdler();
-        if (idlerStatus == INACTIVE)
+        if (idlerStatus == INACTIVE) {
             unParkIdler();
+        }
         loadFilament(CCW);
         parkIdler();          // move the bearing rollers out of the way after a load is complete
         break;
@@ -1597,8 +1649,9 @@ loop:
 
         startTime = millis();
     }
-    if (findaStatus == 0)              // keep feeding the filament until the pinda sensor triggers
+    if (findaStatus == 0) {            // keep feeding the filament until the pinda sensor triggers
         goto loop;
+    }
     //***************************************************************************************************
     //* added additional check (10.10.18) - if the filament switch is already set this might mean there is a switch error or a clog
     //*       this error condition can result in 'air printing'
@@ -2157,13 +2210,23 @@ Application::Application()
 
 
 #ifdef PRUSA_BOARD
-void pinWrite(PinNr pinNr, bool value)
+void pinWrite(PinNr pinNr, bool value, bool immediateTransfer)
 {
     if (pinNr < 0x100) {
         digitalWrite(pinNr, value);
     } else {
         extPins.writeBit(pinNr & 0xff, value);
-        extPins.transferData();
+        if (immediateTransfer) {
+            extPins.transferData();
+        }
     }
 }
+
+void setPinAsOutput(PinNr pinNr)
+{
+    if (pinNr < 0x100) {
+        pinMode(pinNr, OUTPUT);
+    }
+}
+
 #endif

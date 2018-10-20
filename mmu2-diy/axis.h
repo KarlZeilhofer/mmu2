@@ -29,8 +29,13 @@
 class Axis
 {
 public:
-    Axis(PinNr enable, PinNr direcetion, PinNr step,
+    Axis(PinNr enable, PinNr direcetion, PinNr step, PinNr chipSelect,
          uint16_t fullStepsPerRev, uint16_t resolution, uint16_t maxFullSteps);
+
+    PinNr enPin;
+    PinNr dirPin;
+    PinNr stepPin;
+    PinNr csPin;
 
     uint16_t fullStepsPerRev;
     uint16_t resolution; // in microsteps per fullstep

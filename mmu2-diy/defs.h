@@ -31,7 +31,8 @@ typedef uint16_t PinNr;
  * space of pin numbers. Pins of shift register start from 0x100
  * @param pinNr
  */
-void pinWrite(PinNr pinNr, bool value);
+void pinWrite(PinNr pinNr, bool value, bool immediateTransfer = true);
+void setPinAsOutput(PinNr pinNr);
 
 
 #endif // PRUSA_BOARD
