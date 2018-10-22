@@ -16,8 +16,20 @@
 //#define DIY_BOARD
 #define PRUSA_BOARD
 
-#define TEST_LEDs // successfully tested
-#define TEST_AXIS
+#ifdef PRUSA_BOARD
+//PAT9125 configuration
+//#define PAT9125_SWI2C
+#define PAT9125_HWI2C
+#define PAT9125_I2C_ADDR  0x75  //ID=LO
+//#define PAT9125_I2C_ADDR  0x79  //ID=HI
+//#define PAT9125_I2C_ADDR  0x73  //ID=NC
+#define PAT9125_XRES      0
+#define PAT9125_YRES      240
+#endif
+
+//#define TEST_LEDs // successfully tested
+//#define TEST_AXIS
+#define TEST_FSENSOR
 
 #endif // CONFIG_H
 

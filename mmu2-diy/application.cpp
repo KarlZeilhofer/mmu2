@@ -191,13 +191,20 @@ void testLeds()
 
 #endif
 
-#define TEST_AXIS
+#ifdef TEST_AXIS
 void testAxis()
 {
 
 }
-
 #endif
+
+#ifdef TEST_FSENSOR
+void testFilamentSensor()
+{
+	fsensor_update();
+}
+#endif
+
 
 void Application::setup()
 {
@@ -205,18 +212,20 @@ void Application::setup()
     testLeds();
 #endif
 
+#ifdef TEST_AXIS
     axIdler = new Axis(idlerEnablePin, idlerDirPin, idlerStepPin, idlerCsPin, 200, 16, MAX_IDLER_STEPS);
     axSelector = new Axis(colorSelectorEnablePin, colorSelectorDirPin, colorSelectorStepPin,
                           colorSelectorCsPin, 200, 2, 1850);
     axPulley = new Axis(extruderEnablePin, extruderDirPin, extruderStepPin, extruderCsPin, 200, 2, 0);
     // TODO 0: hier gehts weiter!
 
-#define TEST_AXIS
     testAxis();
 #endif
-	
+
+    fsensor_init();
 #ifdef TEST_FSENSOR
-	fsensor_init();
+
+    testFilamentSensor();
 #endif
 
 
@@ -2232,6 +2241,12 @@ void setPinAsOutput(PinNr pinNr)
     if (pinNr < 0x100) {
         pinMode(pinNr, OUTPUT);
     }
+}
+
+int putc(int __c, FILE *__stream)
+{
+	SerialUI.write(__c);
+	return 0;
 }
 
 #endif

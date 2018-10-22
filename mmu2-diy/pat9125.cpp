@@ -4,6 +4,7 @@
 #include <avr/pgmspace.h>
 #include "config.h"
 #include <stdio.h>
+#include <Wire.h>
 
 
 //PAT9125 registers
@@ -111,6 +112,9 @@ uint8_t pat9125_init(void)
 #ifdef PAT9125_SWI2C
     swi2c_init();
 #endif //PAT9125_SWI2C
+#ifdef PAT9125_HWI2C
+	Wire.begin();
+#endif
     // Verify that the sensor responds with its correct product ID.
     pat9125_PID1 = pat9125_rd_reg(PAT9125_PID1);
     pat9125_PID2 = pat9125_rd_reg(PAT9125_PID2);
@@ -174,8 +178,8 @@ uint8_t pat9125_init(void)
 
     pat9125_wr_reg(PAT9125_RES_X, PAT9125_XRES);
     pat9125_wr_reg(PAT9125_RES_Y, PAT9125_YRES);
-    fprintf_P(uartout, PSTR("PAT9125_RES_X=%hhu\n"), pat9125_rd_reg(PAT9125_RES_X));
-    fprintf_P(uartout, PSTR("PAT9125_RES_Y=%hhu\n"), pat9125_rd_reg(PAT9125_RES_Y));
+    // UNCOMMENT ME WHEN IMPLEMENTED fprintf_P(uartout, PSTR("PAT9125_RES_X=%hhu\n"), pat9125_rd_reg(PAT9125_RES_X));
+    // UNCOMMENT ME WHEN IMPLEMENTED fprintf_P(uartout, PSTR("PAT9125_RES_Y=%hhu\n"), pat9125_rd_reg(PAT9125_RES_Y));
     return 1;
 }
 
@@ -270,6 +274,9 @@ uint8_t pat9125_rd_reg(uint8_t addr)
         return 0;
     }
 #endif //PAT9125_SWI2C
+#ifdef PAT9125_HWI2C
+	// TODO 0: I2C
+#endif
     return data;
 }
 
@@ -288,10 +295,16 @@ void pat9125_wr_reg(uint8_t addr, uint8_t data)
         return;
     }
 #endif //PAT9125_SWI2C
+#ifdef PAT9125_HWI2C
+	// TODO 0: I2C
+#endif
 }
 
 uint8_t pat9125_wr_reg_verify(uint8_t addr, uint8_t data)
 {
     pat9125_wr_reg(addr, data);
     return pat9125_rd_reg(addr) == data;
+#ifdef PAT9125_HWI2C
+	// TODO 0: I2C
+#endif
 }

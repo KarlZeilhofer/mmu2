@@ -2,6 +2,7 @@
 #define FSENSOR_H
 
 #include <inttypes.h>
+#include <Arduino.h>
 
 
 //minimum meassured chunk length in steps
