@@ -38,6 +38,7 @@
 #include "application.h"
 #include "config.h"
 #include "axis.h"
+#include "fsensor.h"
 
 #ifdef PRUSA_BOARD
 #include "shiftregister.h"
@@ -212,6 +213,10 @@ void Application::setup()
 
 #define TEST_AXIS
     testAxis();
+#endif
+	
+#ifdef TEST_FSENSOR
+	fsensor_init();
 #endif
 
 
