@@ -241,19 +241,19 @@ void Application::setup()
 #endif
 
 #ifdef TEST_FSENSOR
-	bool initSuccess = false;
-	for(int i=0; i<10000; i++){
-		if( (initSuccess = pat9125_init()) ) {
-			break;
-		}
-		SerialUI.print(F("pat9125_init() "));
-		SerialUI.println(i);
-	}
-	if(!initSuccess){
-		SerialUI.println(F("pat9125_init() failed - HALT"));
+    bool initSuccess = false;
+    for (int i = 0; i < 10000; i++) {
+        if ( (initSuccess = pat9125_init()) ) {
+            break;
+        }
+        SerialUI.print(F("pat9125_init() "));
+        SerialUI.println(i);
+    }
+    if (!initSuccess) {
+        SerialUI.println(F("pat9125_init() failed - HALT"));
         while (1);
-	}
-	
+    }
+
     testFilamentSensor();
 #endif
 
@@ -384,7 +384,7 @@ void Application::loop()
     while (1) {
         int fstatus;
 
-        fstatus = digitalRead(chindaPin);
+        fstatus = !isFilamentAtExtruder();
         SerialUI.print(F("Filament Status: "));
         SerialUI.println(fstatus);
         delay(1000);
@@ -963,8 +963,8 @@ loop:
     //* added filament sensor status check (10.14.18)
     //************************************************************************************************************
 
-    fStatus = digitalRead(
-                  chindaPin);          // read the filament switch (on the top of the mk3 extruder)
+    // read the filament switch (on the top of the mk3 extruder)
+    fStatus = !isFilamentAtExtruder();
 
     if (fStatus ==
             0) {                             // filament Switch is still ON, check for timeout condition
@@ -1693,7 +1693,7 @@ loop:
     //*       this error condition can result in 'air printing'
     //***************************************************************************************************************************
 loop1:
-    fStatus = digitalRead(chindaPin);
+    fStatus = !isFilamentAtExtruder();
     if (fStatus == 0) {                    // switch is active (this is not a good condition)
         fixTheProblem("FILAMENT LOAD ERROR: Filament Switch in the MK3 is active (see the RED LED), it is either stuck open or there is debris");
         goto loop1;
@@ -1728,7 +1728,7 @@ loop1:
 
         feedFilament(STEPSPERMM);        // step forward 1 mm
         filamentDistance++;
-        fStatus = digitalRead(chindaPin);             // read the filament switch on the mk3 extruder
+        fStatus = !isFilamentAtExtruder();             // read the filament switch on the mk3 extruder
         if (fStatus == 0) {
             // SerialUI.println(F("filament switch triggered"));
             flag = 1;
@@ -2272,3 +2272,12 @@ int putc(int __c, FILE *__stream)
 }
 
 #endif
+
+bool isFilamentAtExtruder()
+{
+#ifdef PRUSA_BOARD
+    // TODO 1: implement a good algorithm to translate "motion" into "is filament"
+#else
+    return !digitalRead(chindaPin);
+#endif
+}

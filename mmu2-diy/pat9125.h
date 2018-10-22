@@ -15,8 +15,8 @@ extern uint8_t pat9125_PID2;
 
 extern int16_t pat9125_x;
 extern int16_t pat9125_y;
-extern uint8_t pat9125_b;
-extern uint8_t pat9125_s;
+extern uint8_t pat9125_b; // brightness
+extern uint8_t pat9125_s; // shutter
 
 extern uint8_t pat9125_init(void);
 extern uint8_t pat9125_update(void);
