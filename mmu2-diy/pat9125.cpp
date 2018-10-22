@@ -275,7 +275,12 @@ uint8_t pat9125_rd_reg(uint8_t addr)
     }
 #endif //PAT9125_SWI2C
 #ifdef PAT9125_HWI2C
-    Wire.requestFrom(addr & 0x7f, 1);
+	
+	Wire.beginTransmission(PAT9125_I2C_ADDR);
+	Wire.write(addr & 0x7f);
+    Wire.endTransmission();
+	
+    Wire.requestFrom(PAT9125_I2C_ADDR, 1);
     if (Wire.available()) {
         data = Wire.read();
     }
@@ -300,7 +305,8 @@ void pat9125_wr_reg(uint8_t addr, uint8_t data)
 #endif //PAT9125_SWI2C
 #ifdef PAT9125_HWI2C
     // TODO 0: I2C
-    Wire.beginTransmission(addr | 0x80);
+    Wire.beginTransmission(PAT9125_I2C_ADDR);
+	Wire.write(addr | 0x80);
     Wire.write(data);
     Wire.endTransmission();
 #endif

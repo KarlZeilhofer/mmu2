@@ -241,11 +241,19 @@ void Application::setup()
 #endif
 
 #ifdef TEST_FSENSOR
-    if (!pat9125_init()) {
-        SerialUI.println(F("pat9125_init() failed - HALT"));
+	bool initSuccess = false;
+	for(int i=0; i<10000; i++){
+		if( (initSuccess = pat9125_init()) ) {
+			break;
+		}
+		SerialUI.print(F("pat9125_init() "));
+		SerialUI.println(i);
+	}
+	if(!initSuccess){
+		SerialUI.println(F("pat9125_init() failed - HALT"));
         while (1);
-    }
-
+	}
+	
     testFilamentSensor();
 #endif
 
