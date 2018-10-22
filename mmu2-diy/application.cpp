@@ -201,7 +201,7 @@ void testAxis()
 #ifdef TEST_FSENSOR
 void testFilamentSensor()
 {
-	fsensor_update();
+    fsensor_update();
 }
 #endif
 
@@ -2245,8 +2245,8 @@ void setPinAsOutput(PinNr pinNr)
 
 int putc(int __c, FILE *__stream)
 {
-	SerialUI.write(__c);
-	return 0;
+    SerialUI.write(__c);
+    return 0;
 }
 
 #endif

@@ -114,7 +114,7 @@ void fsensor_init(void)
     // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("PAT9125_init:%hhu\n"), pat9125);
     uint8_t fsensor = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENSOR);
     fsensor_autoload_enabled = 1; //eeprom_read_byte((uint8_t *)EEPROM_FSENS_AUTOLOAD_ENABLED);
-//    uint8_t oq_meassure_enabled = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENS_OQ_MEASS_ENABLED);
+    //    uint8_t oq_meassure_enabled = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENS_OQ_MEASS_ENABLED);
     fsensor_oq_meassure_enabled = 1; // (oq_meassure_enabled == 1) ? true : false;
     fsensor_chunk_len = 1; //(int16_t)(FSENSOR_CHUNK_LEN * axis_steps_per_unit[E_AXIS]);
 
@@ -168,9 +168,9 @@ void fsensor_autoload_set(bool State)
 
 void pciSetup(byte pin)
 {
-//    *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin)); // enable pin
-//    PCIFR |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
-//    PCICR |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
+    //    *digitalPinToPCMSK(pin) |= bit (digitalPinToPCMSKbit(pin)); // enable pin
+    //    PCIFR |= bit (digitalPinToPCICRbit(pin)); // clear any outstanding interrupt
+    //    PCICR |= bit (digitalPinToPCICRbit(pin)); // enable interrupt for the group
 }
 
 void fsensor_autoload_check_start(void)
@@ -235,7 +235,7 @@ bool fsensor_check_autoload(void)
         fsensor_autoload_check_start();
         return false;
     }
-//    uint8_t fsensor_autoload_c_old = fsensor_autoload_c;
+    //    uint8_t fsensor_autoload_c_old = fsensor_autoload_c;
     if ((millis() - fsensor_autoload_last_millis) < 25) {
         return false;
     }
@@ -365,10 +365,10 @@ bool fsensor_oq_result(void)
 
 void PCINT2_vect()
 {
-//    if (!((fsensor_int_pin_old ^ PINK) & FSENSOR_INT_PIN_MSK)) {
-//        return;
-//    }
-//    fsensor_int_pin_old = PINK;
+    //    if (!((fsensor_int_pin_old ^ PINK) & FSENSOR_INT_PIN_MSK)) {
+    //        return;
+    //    }
+    //    fsensor_int_pin_old = PINK;
     static bool _lock = false;
     if (_lock) {
         return;
@@ -437,19 +437,19 @@ void PCINT2_vect()
 #ifdef DEBUG_FSENSOR_LOG
     if (fsensor_log) {
         // UNCOMMENT ME WHEN IMPLEMENTED printf_P(_N("FSENSOR cnt=%d dy=%d err=%hhu %S\n"), st_cnt, pat9125_y, fsensor_err_cnt,
-                 (fsensor_err_cnt > old_err_cnt) ? _N("NG!") : _N("OK"));
+        (fsensor_err_cnt > old_err_cnt) ? _N("NG!") : _N("OK"));
         if (fsensor_oq_meassure) {
-            // UNCOMMENT ME WHEN IMPLEMENTED printf_P(_N("FSENSOR st_sum=%u yd_sum=%u er_sum=%u er_max=%hhu yd_max=%u\n"), fsensor_oq_st_sum,
-                     fsensor_oq_yd_sum, fsensor_oq_er_sum, fsensor_oq_er_max, fsensor_oq_yd_max);
-        }
+        // UNCOMMENT ME WHEN IMPLEMENTED printf_P(_N("FSENSOR st_sum=%u yd_sum=%u er_sum=%u er_max=%hhu yd_max=%u\n"), fsensor_oq_st_sum,
+        fsensor_oq_yd_sum, fsensor_oq_er_sum, fsensor_oq_er_max, fsensor_oq_yd_max);
     }
+}
 #endif //DEBUG_FSENSOR_LOG
 
-    fsensor_dy_old = pat9125_y;
-    pat9125_y = 0;
+fsensor_dy_old = pat9125_y;
+pat9125_y = 0;
 
-    _lock = false;
-    return;
+_lock = false;
+return;
 }
 
 //void fsensor_st_block_begin(block_t *bl)
@@ -508,17 +508,17 @@ void fsensor_update(void)
                 st_synchronize();
         */
 
-//        enquecommand_front_P((PSTR("G1 E-3 F200")));
-//        process_commands();
-//        KEEPALIVE_STATE(IN_HANDLER);
-//        cmdqueue_pop_front();
-//        st_synchronize();
+        //        enquecommand_front_P((PSTR("G1 E-3 F200")));
+        //        process_commands();
+        //        KEEPALIVE_STATE(IN_HANDLER);
+        //        cmdqueue_pop_front();
+        //        st_synchronize();
 
-//        enquecommand_front_P((PSTR("G1 E3 F200")));
-//        process_commands();
-//        KEEPALIVE_STATE(IN_HANDLER);
-//        cmdqueue_pop_front();
-//        st_synchronize();
+        //        enquecommand_front_P((PSTR("G1 E3 F200")));
+        //        process_commands();
+        //        KEEPALIVE_STATE(IN_HANDLER);
+        //        cmdqueue_pop_front();
+        //        st_synchronize();
 
         uint8_t err_cnt = fsensor_err_cnt;
         fsensor_oq_meassure_stop();
@@ -538,8 +538,8 @@ void fsensor_update(void)
             //                   eeprom_read_byte((uint8_t *)EEPROM_FERROR_COUNT) + 1);
             //eeprom_update_word((uint16_t *)EEPROM_FERROR_COUNT_TOT,
             //                   eeprom_read_word((uint16_t *)EEPROM_FERROR_COUNT_TOT) + 1);
-//            enquecommand_front_P(PSTR("FSENSOR_RECOVER"));
-//            enquecommand_front_P((PSTR("M600")));
+            //            enquecommand_front_P(PSTR("FSENSOR_RECOVER"));
+            //            enquecommand_front_P((PSTR("M600")));
             fsensor_watch_runout = false;
         }
         fsensor_autoload_enabled = autoload_enabled_tmp;
