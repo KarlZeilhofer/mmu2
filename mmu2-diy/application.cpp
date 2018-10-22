@@ -38,7 +38,7 @@
 #include "application.h"
 #include "config.h"
 #include "axis.h"
-#include "fsensor.h"
+#include "pat9125.h"
 
 #ifdef PRUSA_BOARD
 #include "shiftregister.h"
@@ -201,13 +201,31 @@ void testAxis()
 #ifdef TEST_FSENSOR
 void testFilamentSensor()
 {
-    fsensor_update();
+    while (1) {
+        if (pat9125_update()) {
+            SerialUI.println(pat9125_y);
+        } else {
+            SerialUI.println(F("No Sensor"));
+        }
+        delay(100);
+    }
 }
 #endif
 
 
 void Application::setup()
 {
+    SerialUI.begin(500000);  // startup the local serial interface (changed to 2 Mbaud on 10.7.18
+    SerialUI.begin(115200);  // Karl set to 115200 baud
+    while (!SerialUI) {
+        ; // wait for serial port to connect. needed for native USB port only
+        SerialUI.println(F("waiting for serial port"));
+    }
+
+    SerialUI.println(MMU2_VERSION);
+
+
+
 #ifdef TEST_LEDs
     testLeds();
 #endif
@@ -222,8 +240,11 @@ void Application::setup()
     testAxis();
 #endif
 
-    fsensor_init();
 #ifdef TEST_FSENSOR
+    if (!pat9125_init()) {
+        SerialUI.println(F("pat9125_init() failed - HALT"));
+        while (1);
+    }
 
     testFilamentSensor();
 #endif
@@ -233,13 +254,6 @@ void Application::setup()
 
     int waitCount;
 
-    SerialUI.begin(500000);  // startup the local serial interface (changed to 2 Mbaud on 10.7.18
-    while (!Serial) {
-        ; // wait for serial port to connect. needed for native USB port only
-        SerialUI.println(F("waiting for serial port"));
-    }
-
-    SerialUI.println(MMU2_VERSION);
 
     //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
     // THIS DELAY IS CRITICAL DURING POWER UP/RESET TO PROPERLY SYNC WITH THE MK3 CONTROLLER BOARD

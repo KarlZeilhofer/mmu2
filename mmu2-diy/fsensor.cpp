@@ -97,7 +97,7 @@ uint16_t fsensor_oq_sh_sum;
 void fsensor_stop_and_save_print(void)
 {
     // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("fsensor_stop_and_save_print\n"));
-    stop_and_save_print_to_ram(0, 0); //XYZE - no change
+    //stop_and_save_print_to_ram(0, 0); //XYZE - no change
 }
 
 void fsensor_restore_print_and_continue(void)
@@ -105,31 +105,33 @@ void fsensor_restore_print_and_continue(void)
     // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("fsensor_restore_print_and_continue\n"));
     fsensor_watch_runout = true;
     fsensor_err_cnt = 0;
-    restore_print_from_ram_and_continue(0); //XYZ = orig, E - no change
+    //restore_print_from_ram_and_continue(0); //XYZ = orig, E - no change
 }
 
 void fsensor_init(void)
 {
-    uint8_t pat9125 = pat9125_init();
-    // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("PAT9125_init:%hhu\n"), pat9125);
-    uint8_t fsensor = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENSOR);
-    fsensor_autoload_enabled = 1; //eeprom_read_byte((uint8_t *)EEPROM_FSENS_AUTOLOAD_ENABLED);
-    //    uint8_t oq_meassure_enabled = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENS_OQ_MEASS_ENABLED);
-    fsensor_oq_meassure_enabled = 1; // (oq_meassure_enabled == 1) ? true : false;
-    fsensor_chunk_len = 1; //(int16_t)(FSENSOR_CHUNK_LEN * axis_steps_per_unit[E_AXIS]);
+    //uint8_t pat9125 =
+    pat9125_init();
 
-    if (!pat9125) {
-        fsensor = 0; //disable sensor
-        fsensor_not_responding = true;
-    } else {
-        fsensor_not_responding = false;
-    }
-    if (fsensor) {
-        fsensor_enable();
-    } else {
-        fsensor_disable();
-    }
-    // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("FSensor %S\n"), (fsensor_enabled ? PSTR("ENABLED") : PSTR("DISABLED\n")));
+    //    // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("PAT9125_init:%hhu\n"), pat9125);
+    //    uint8_t fsensor = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENSOR);
+    //    fsensor_autoload_enabled = 1; //eeprom_read_byte((uint8_t *)EEPROM_FSENS_AUTOLOAD_ENABLED);
+    //    //    uint8_t oq_meassure_enabled = 1; // eeprom_read_byte((uint8_t *)EEPROM_FSENS_OQ_MEASS_ENABLED);
+    //    fsensor_oq_meassure_enabled = 1; // (oq_meassure_enabled == 1) ? true : false;
+    //    fsensor_chunk_len = 1; //(int16_t)(FSENSOR_CHUNK_LEN * axis_steps_per_unit[E_AXIS]);
+
+    //    if (!pat9125) {
+    //        fsensor = 0; //disable sensor
+    //        fsensor_not_responding = true;
+    //    } else {
+    //        fsensor_not_responding = false;
+    //    }
+    //    if (fsensor) {
+    //        fsensor_enable();
+    //    } else {
+    //        fsensor_disable();
+    //    }
+    //    // UNCOMMENT ME WHEN IMPLEMENTED printf_P(PSTR("FSensor %S\n"), (fsensor_enabled ? PSTR("ENABLED") : PSTR("DISABLED\n")));
 }
 
 bool fsensor_enable(void)
