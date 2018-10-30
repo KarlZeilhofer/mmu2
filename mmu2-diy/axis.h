@@ -29,7 +29,7 @@
 class Axis
 {
 public:
-    Axis(PinNr enable, PinNr direcetion, PinNr step, PinNr chipSelect,
+    Axis(PinNr enable, PinNr direction, PinNr step, PinNr chipSelect,
          uint16_t fullStepsPerRev, uint16_t resolution, uint16_t maxFullSteps);
 
     PinNr enPin;
