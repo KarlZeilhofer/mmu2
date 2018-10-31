@@ -32,6 +32,10 @@ public:
     Axis(PinNr enable, PinNr direction, PinNr step, PinNr chipSelect,
          uint16_t fullStepsPerRev, uint16_t resolution, uint16_t maxFullSteps);
 
+	enum MotionReturn{MR_OtherError, MR_Success};
+
+	MotionReturn home();
+
     PinNr enPin;
     PinNr dirPin;
     PinNr stepPin;

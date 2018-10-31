@@ -28,8 +28,8 @@
 #endif
 
 //#define TEST_LEDs // successfully tested
-//#define TEST_AXIS
-#define TEST_FSENSOR
+#define TEST_AXIS
+//#define TEST_FSENSOR
 
 #endif // CONFIG_H
 

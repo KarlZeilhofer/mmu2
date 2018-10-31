@@ -14,6 +14,12 @@ Axis::Axis(PinNr enable, PinNr direction, PinNr step, PinNr chipSelect, uint16_t
     pinWrite(enPin, DISABLE);
     pinWrite(dirPin, CW);
     pinWrite(stepPin, 0);
-    pinWrite(csPin, LOW);
+	pinWrite(csPin, LOW);
+}
+
+Axis::MotionReturn Axis::home()
+{
+
+	return Axis::MR_Success;
 }
 

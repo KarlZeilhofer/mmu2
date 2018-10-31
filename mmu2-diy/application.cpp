@@ -145,6 +145,9 @@ boolean newData = false;
 int idlerStatus = INACTIVE;
 int colorSelectorStatus = INACTIVE;
 
+static bool isFilamentAtExtruder();
+
+
 #ifdef PRUSA_BOARD
 ShiftRegister extPins(16, 9, 13, 10);
 #endif
@@ -236,6 +239,8 @@ void Application::setup()
                           colorSelectorCsPin, 200, 2, 1850);
     axPulley = new Axis(extruderEnablePin, extruderDirPin, extruderStepPin, extruderCsPin, 200, 2, 0);
     // TODO 0: hier gehts weiter!
+
+
 
     testAxis();
 #endif
@@ -2276,7 +2281,7 @@ int putc(int __c, FILE *__stream)
 bool isFilamentAtExtruder()
 {
 #ifdef PRUSA_BOARD
-    // TODO 1: implement a good algorithm to translate "motion" into "is filament"
+	return !digitalRead(chindaPin);
 #else
     return !digitalRead(chindaPin);
 #endif
